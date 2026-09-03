@@ -649,29 +649,12 @@ export default function InterviewsPage() {
                   {/* Interviewer (active round) */}
                   <div className="td td-interviewer" onClick={e => e.stopPropagation()}>
                     {activeRound ? (
-                      editTarget?.kind === "round-text" &&
-                      editTarget.candidateId === c.id &&
-                      editTarget.roundNo === activeRound.roundNo &&
-                      editTarget.field === "interviewer" ? (
-                        <input
-                          className="exp-field-input"
-                          value={editValue}
-                          autoFocus
-                          onChange={e => setEditValue(e.target.value)}
-                          onBlur={commitEdit}
-                          onKeyDown={handleKeyDown}
-                          onClick={e => e.stopPropagation()}
-                        />
-                      ) : (
-                        <button
-                          className="interviewer-edit-btn"
-                          onClick={e => startRoundEdit(c.id, activeRound.roundNo, "interviewer", activeRound.interviewer, e)}
-                        >
-                          <User size={11} />
-                          <span>{activeRound.interviewer || "Add interviewer"}</span>
-                          <Pencil size={10} className="edit-pencil" />
-                        </button>
-                      )
+                      <EditText
+                        candidateId={c.id} roundNo={activeRound.roundNo}
+                        field="interviewer" value={activeRound.interviewer}
+                        placeholder="Add interviewer"
+                        {...editProps}
+                      />
                     ) : (
                       <span className="no-active">—</span>
                     )}
@@ -760,50 +743,70 @@ export default function InterviewsPage() {
                               {/* Role */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Briefcase size={10} /> Role</span>
-                                <EditRole candidateId={c.id} value={c.role} {...editRoleProps} />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{c.role}</span>
+                                ) : (
+                                  <EditRole candidateId={c.id} value={c.role} {...editRoleProps} />
+                                )}
                               </div>
 
                               {/* Date */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Calendar size={10} /> Date</span>
-                                <EditText
-                                  candidateId={c.id} roundNo={r.roundNo}
-                                  field="date" value={r.date} placeholder="e.g. 10 Jun 2026"
-                                  {...editProps}
-                                />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{r.date}</span>
+                                ) : (
+                                  <EditText
+                                    candidateId={c.id} roundNo={r.roundNo}
+                                    field="date" value={r.date} placeholder="e.g. 10 Jun 2026"
+                                    {...editProps}
+                                  />
+                                )}
                               </div>
 
                               {/* Time */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Clock size={10} /> Time</span>
-                                <EditText
-                                  candidateId={c.id} roundNo={r.roundNo}
-                                  field="time" value={r.time} placeholder="e.g. 10:00 AM"
-                                  {...editProps}
-                                />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{r.time}</span>
+                                ) : (
+                                  <EditText
+                                    candidateId={c.id} roundNo={r.roundNo}
+                                    field="time" value={r.time} placeholder="e.g. 10:00 AM"
+                                    {...editProps}
+                                  />
+                                )}
                               </div>
 
                               {/* Interviewer name */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><User size={10} /> Interviewer</span>
-                                <EditText
-                                  candidateId={c.id} roundNo={r.roundNo}
-                                  field="interviewer" value={r.interviewer} placeholder="Full name"
-                                  {...editProps}
-                                />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{r.interviewer}</span>
+                                ) : (
+                                  <EditText
+                                    candidateId={c.id} roundNo={r.roundNo}
+                                    field="interviewer" value={r.interviewer} placeholder="Full name"
+                                    {...editProps}
+                                  />
+                                )}
                               </div>
 
                               {/* Interviewer email */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Mail size={10} /> Int. Email</span>
-                                <EditText
-                                  candidateId={c.id} roundNo={r.roundNo}
-                                  field="interviewerEmail"
-                                  value={r.interviewerEmail}
-                                  placeholder="interviewer@company.com"
-                                  wide={true}
-                                  {...editProps}
-                                />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{r.interviewerEmail || "—"}</span>
+                                ) : (
+                                  <EditText
+                                    candidateId={c.id} roundNo={r.roundNo}
+                                    field="interviewerEmail"
+                                    value={r.interviewerEmail}
+                                    placeholder="interviewer@company.com"
+                                    wide={true}
+                                    {...editProps}
+                                  />
+                                )}
                               </div>
 
                               {/* Mode toggle */}
@@ -811,25 +814,35 @@ export default function InterviewsPage() {
                                 <span className="exp-field-label">
                                   {r.mode === "Video Call" ? <Video size={10} /> : <Monitor size={10} />} Mode
                                 </span>
-                                <button
-                                  className={`exp-mode-toggle ${r.mode === "Video Call" ? "mode-video" : "mode-person"}`}
-                                  onClick={e => toggleMode(c.id, r.roundNo, e)}
-                                  title="Click to toggle mode"
-                                >
-                                  {r.mode === "Video Call" ? <Video size={10} /> : <Monitor size={10} />}
-                                  {r.mode}
-                                  <Pencil size={9} className="edit-pencil" />
-                                </button>
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">
+                                    {r.mode === "Video Call" ? <Video size={10}/> : <Monitor size={10}/>} {r.mode}
+                                  </span>
+                                ) : (
+                                  <button
+                                    className={`exp-mode-toggle ${r.mode === "Video Call" ? "mode-video" : "mode-person"}`}
+                                    onClick={e => toggleMode(c.id, r.roundNo, e)}
+                                    title="Click to toggle mode"
+                                  >
+                                    {r.mode === "Video Call" ? <Video size={10} /> : <Monitor size={10} />}
+                                    {r.mode}
+                                    <Pencil size={9} className="edit-pencil" />
+                                  </button>
+                                )}
                               </div>
 
                               {/* Duration */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Clock size={10} /> Duration</span>
-                                <EditText
-                                  candidateId={c.id} roundNo={r.roundNo}
-                                  field="duration" value={r.duration} placeholder="e.g. 60 min"
-                                  {...editProps}
-                                />
+                                {r.status === "passed" || r.status === "failed" ? (
+                                  <span className="exp-field-locked">{r.duration}</span>
+                                ) : (
+                                  <EditText
+                                    candidateId={c.id} roundNo={r.roundNo}
+                                    field="duration" value={r.duration} placeholder="e.g. 60 min"
+                                    {...editProps}
+                                  />
+                                )}
                               </div>
 
                             </div>{/* end exp-fields-grid */}
