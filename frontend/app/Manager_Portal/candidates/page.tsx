@@ -270,17 +270,21 @@ export default function ManagerCandidates() {
                     ? completedRounds[completedRounds.length - 1].feedback!
                     : null;
 
-                  // Parse raw skills string "Apex: 4/5, SOQL: 3/5, ..."
-                  // into [{skill, pct}] for display
+                  // Parse raw skills string — handles two formats:
+                  // 1. "Apex: 4/5, SOQL: 3/5"  (interviewer feedback style)
+                  // 2. "machine learning, deep learning, Python" (plain tags from resume)
                   function parseSkillsString(raw: string): { skill: string; rating: string; pct: number }[] {
-                    return raw.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+                    return raw.split(",").map(s => s.trim()).filter(Boolean).map((s, idx, arr) => {
+                      // Try rated format: "SkillName: N/M"
                       const m = s.match(/^(.+?):\s*(\d+(?:\.\d+)?)\/(\d+)$/);
                       if (m) {
                         const score = parseFloat(m[2]);
                         const max   = parseFloat(m[3]);
                         return { skill: m[1].trim(), rating: `${m[2]}/${m[3]}`, pct: Math.round((score / max) * 100) };
                       }
-                      return { skill: s, rating: "—", pct: 0 };
+                      // Plain skill name — distribute bar widths evenly descending from ~85%
+                      const basePct = Math.max(40, 85 - idx * 5);
+                      return { skill: s, rating: "—", pct: basePct };
                     });
                   }
 
@@ -435,7 +439,9 @@ export default function ManagerCandidates() {
                                 <div key={skill} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                   <span style={{ fontSize: 12, color: "#374151", width: 130, flexShrink: 0, wordBreak: "break-word" }}>{skill}</span>
                                   <GradBar pct={pct}/>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#1e1b4b", width: 40, textAlign: "right", flexShrink: 0 }}>{rating}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#1e1b4b", width: 40, textAlign: "right", flexShrink: 0 }}>
+                                    {rating !== "—" ? rating : `${pct}%`}
+                                  </span>
                                 </div>
                               ))}
                             </div>
