@@ -362,28 +362,63 @@ async def hr_approve(body: HRApproveRequest):
     email_error_msg = ""
     if manager_email:
         try:
-            # Build a clean round summary table
+            # ── Compute avg interviewer rating across all completed rounds ────
+            rated_rounds = [
+                r for r in (rounds or [])
+                if r.get("rating") and str(r.get("status", "")).lower() in ("passed", "completed", "failed", "active")
+            ]
+            if rated_rounds:
+                avg_rating = sum(float(r["rating"]) for r in rated_rounds) / len(rated_rounds)
+                avg_rating_str = f"{round(avg_rating, 1)} / 5"
+            else:
+                avg_rating_str = "—"
+
+            # ── AI resume score (sent from frontend as overall_rating when no feedback exists,
+            #    or stored as score/ai_score on the candidate doc via iv_doc) ──
+            ai_score = None
+            if iv_doc:
+                ai_score = iv_doc.get("score") or iv_doc.get("ai_score")
+            if not ai_score and body.overall_rating:
+                # Only use body.overall_rating as ai_score if it looks like a 0-100 value
+                if body.overall_rating > 5:
+                    ai_score = body.overall_rating
+            ai_score_str = f"{int(ai_score)} / 100" if ai_score else "—"
+
+            # ── Build round rows ──────────────────────────────────────────────
             rounds_rows = ""
             for i, r in enumerate(rounds or [], start=1):
-                status_label = r.get("status", "pending").title()
-                interviewer  = r.get("interviewer", "—")
-                date_val     = r.get("date", "TBD")
-                rating       = r.get("rating", "")
-                rating_str   = f"{rating}/5" if rating else "—"
+                status_raw   = str(r.get("status", "pending"))
+                status_label = {
+                    "passed":    "✅ Passed",
+                    "completed": "✅ Completed",
+                    "failed":    "❌ Failed",
+                    "active":    "🔵 Active",
+                    "scheduled": "📅 Scheduled",
+                    "pending":   "⏳ Pending",
+                }.get(status_raw.lower(), status_raw.title())
+
+                interviewer = (
+                    r.get("interviewer")
+                    or r.get("interviewerName")
+                    or r.get("interviewer_name")
+                    or r.get("interviewerEmail", "")
+                    or "TBD"
+                )
+                date_val     = r.get("date") or r.get("interview_date") or "TBD"
+                round_rating = r.get("rating", "")
+                rating_str   = f"{round_rating} / 5" if round_rating else "—"
+
                 rounds_rows += f"""
 <tr>
-  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">Round {i}</td>
-  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{interviewer}</td>
-  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{date_val}</td>
-  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{status_label}</td>
-  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{rating_str}</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #e9edf2;color:#374151;font-weight:600;">Round {i}</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #e9edf2;color:#374151;">{interviewer}</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #e9edf2;color:#374151;">{date_val}</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #e9edf2;">{rating_str}</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #e9edf2;">{status_label}</td>
 </tr>"""
 
-            rec      = body.recommendation or "—"
-            rating_v = f"{body.overall_rating}/5" if body.overall_rating else "—"
-
             body_html = f"""
-<div style="font-family:sans-serif;max-width:620px;color:#1e1b4b;">
+<div style="font-family:sans-serif;max-width:640px;color:#1e1b4b;">
   <div style="background:linear-gradient(135deg,#6366f1,#818cf8);padding:24px 28px;border-radius:12px 12px 0 0;">
     <h2 style="color:#fff;margin:0;font-size:20px;">👤 Candidate Forwarded for Your Review</h2>
     <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px;">
@@ -392,37 +427,48 @@ async def hr_approve(body: HRApproveRequest):
   </div>
 
   <div style="background:#fff;border:1px solid #e9edf2;border-top:none;border-radius:0 0 12px 12px;padding:24px 28px;">
-    <div style="background:#f8f7ff;border-left:4px solid #6366f1;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+
+    <!-- Candidate Summary -->
+    <div style="background:#f8f7ff;border-left:4px solid #6366f1;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">📋 Candidate Summary</p>
       <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
-        <tr><td style="padding:5px 0;width:160px;color:#6b7280;">Name</td>
-            <td style="padding:5px 0;"><b>{name}</b></td></tr>
-        <tr><td style="padding:5px 0;color:#6b7280;">Role</td>
-            <td style="padding:5px 0;">{role}</td></tr>
-        <tr><td style="padding:5px 0;color:#6b7280;">Overall Rating</td>
-            <td style="padding:5px 0;"><b>{rating_v}</b></td></tr>
-        <tr><td style="padding:5px 0;color:#6b7280;">Recommendation</td>
-            <td style="padding:5px 0;"><b>{rec}</b></td></tr>
+        <tr>
+          <td style="padding:6px 0;width:180px;color:#6b7280;">Name</td>
+          <td style="padding:6px 0;"><b>{name}</b></td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#6b7280;">Role</td>
+          <td style="padding:6px 0;">{role}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#6b7280;">AI Resume Score</td>
+          <td style="padding:6px 0;"><b>{ai_score_str}</b></td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#6b7280;">Avg Interviewer Rating</td>
+          <td style="padding:6px 0;"><b>{avg_rating_str}</b></td>
+        </tr>
       </table>
     </div>
 
+    <!-- Interview Details -->
     {"" if not rounds_rows else f'''
-    <p style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">Interview Rounds</p>
+    <p style="font-size:13px;font-weight:700;color:#374151;margin:0 0 10px;">🗓️ Interview Details</p>
     <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;border:1px solid #e9edf2;border-radius:8px;overflow:hidden;">
       <thead>
         <tr style="background:#f8faff;">
-          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Round</th>
-          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Interviewer</th>
-          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Date</th>
-          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Status</th>
-          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Rating</th>
+          <th style="padding:9px 12px;text-align:left;color:#6b7280;font-weight:700;border-bottom:1px solid #e9edf2;">Round</th>
+          <th style="padding:9px 12px;text-align:left;color:#6b7280;font-weight:700;border-bottom:1px solid #e9edf2;">Interviewer Name</th>
+          <th style="padding:9px 12px;text-align:left;color:#6b7280;font-weight:700;border-bottom:1px solid #e9edf2;">Interview Date</th>
+          <th style="padding:9px 12px;text-align:left;color:#6b7280;font-weight:700;border-bottom:1px solid #e9edf2;">Rating by Interviewer</th>
+          <th style="padding:9px 12px;text-align:left;color:#6b7280;font-weight:700;border-bottom:1px solid #e9edf2;">Status</th>
         </tr>
       </thead>
       <tbody>{rounds_rows}</tbody>
     </table>
     '''}
 
-    <p style="font-size:13px;color:#374151;margin:20px 0 8px;">
+    <p style="font-size:13px;color:#374151;margin:24px 0 10px;">
       Please log in to the <b>Manager Portal</b> to approve or reject this candidate.
     </p>
     <a href="http://localhost:3000/manager-portal/interviews"
@@ -455,6 +501,7 @@ async def hr_approve(body: HRApproveRequest):
         logger.info("No manager_email provided — skipping notification email for '%s'", name)
 
     logger.info("HR approved candidate '%s' (%s) for manager review", name, candidate_id)
+    logger.debug("rounds sample: %s", (rounds or [{}])[:1])
     return {
         "success":        True,
         "candidate_id":   candidate_id,
