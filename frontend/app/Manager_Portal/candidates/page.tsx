@@ -270,7 +270,24 @@ export default function ManagerCandidates() {
                     ? completedRounds[completedRounds.length - 1].feedback!
                     : null;
 
-                  // Aggregate skills across all rounds
+                  // Parse raw skills string "Apex: 4/5, SOQL: 3/5, ..."
+                  // into [{skill, pct}] for display
+                  function parseSkillsString(raw: string): { skill: string; rating: string; pct: number }[] {
+                    return raw.split(",").map(s => s.trim()).filter(Boolean).map(s => {
+                      const m = s.match(/^(.+?):\s*(\d+(?:\.\d+)?)\/(\d+)$/);
+                      if (m) {
+                        const score = parseFloat(m[2]);
+                        const max   = parseFloat(m[3]);
+                        return { skill: m[1].trim(), rating: `${m[2]}/${m[3]}`, pct: Math.round((score / max) * 100) };
+                      }
+                      return { skill: s, rating: "—", pct: 0 };
+                    });
+                  }
+
+                  // Skills: prefer raw string from candidate profile, fallback to round feedback
+                  const profileSkills = c.skills ? parseSkillsString(c.skills) : [];
+
+                  // Aggregate skills from round feedback as fallback
                   const skillMap: Record<string, number[]> = {};
                   completedRounds.forEach(r => {
                     (r.feedback?.skills || []).forEach(sk => {
@@ -278,40 +295,36 @@ export default function ManagerCandidates() {
                       skillMap[sk.skill].push(sk.score);
                     });
                   });
-                  const aggSkills = Object.entries(skillMap).map(([skill, scores]) => ({
+                  const feedbackSkills = Object.entries(skillMap).map(([skill, scores]) => ({
                     skill,
+                    rating: `${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)}/5`,
                     pct: Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 20),
                   })).sort((a, b) => b.pct - a.pct).slice(0, 6);
 
-                  // Match dimensions (0-100)
+                  const displaySkills = profileSkills.length > 0 ? profileSkills : feedbackSkills;
+
+                  // Match dimensions
                   const avgComm    = completedRounds.length
-                    ? completedRounds.reduce((s, r) => s + (r.feedback?.communication    || 0), 0) / completedRounds.length * 20
-                    : 0;
+                    ? completedRounds.reduce((s, r) => s + (r.feedback?.communication || 0), 0) / completedRounds.length * 20 : 0;
                   const avgCulture = completedRounds.length
-                    ? completedRounds.reduce((s, r) => s + (r.feedback?.cultural_fit     || 0), 0) / completedRounds.length * 20
-                    : 0;
-                  const skillAvg   = aggSkills.length
-                    ? aggSkills.reduce((s, sk) => s + sk.pct, 0) / aggSkills.length
-                    : 0;
+                    ? completedRounds.reduce((s, r) => s + (r.feedback?.cultural_fit   || 0), 0) / completedRounds.length * 20 : 0;
+                  const skillAvg   = displaySkills.length
+                    ? displaySkills.reduce((s, sk) => s + sk.pct, 0) / displaySkills.length : 0;
                   const expScore   = Math.min(100, (c.rounds.filter(r => r.status === "passed").length / Math.max(c.rounds.length, 1)) * 100);
 
                   const dimensions = [
-                    { label: "Skills",        pct: Math.round(skillAvg   || dec?.overall_rating ? (dec?.overall_rating ?? 0) * 20 : 0) },
+                    { label: "Skills",        pct: Math.round(skillAvg   || (c.aiScore ? c.aiScore : 0)) },
                     { label: "Experience",    pct: Math.round(expScore) },
                     { label: "Communication", pct: Math.round(avgComm) },
                     { label: "Culture Fit",   pct: Math.round(avgCulture) },
                   ];
 
-                  // AI summary text
-                  const aiSummary = lastFeedback?.summary || null;
+                  const aiSummary = c.summary || lastFeedback?.summary || null;
 
                   const GradBar = ({ pct }: { pct: number }) => (
                     <div style={{ flex: 1, height: 8, borderRadius: 99, background: "#f0eef8", overflow: "hidden" }}>
-                      <div style={{
-                        width: `${pct}%`, height: "100%", borderRadius: 99,
-                        background: "linear-gradient(90deg, #6ec6f5, #a78bfa, #ec4899)",
-                        transition: "width .4s ease",
-                      }}/>
+                      <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99,
+                        background: "linear-gradient(90deg,#6ec6f5,#a78bfa,#ec4899)", transition: "width .4s ease" }}/>
                     </div>
                   );
 
@@ -319,26 +332,81 @@ export default function ManagerCandidates() {
                     <div style={{ borderBottom: "1px solid rgba(221,208,232,0.2)", background: "#fafafe", padding: "16px 20px" }}>
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
 
-                        {/* AI Summary */}
-                        {aiSummary && (
-                          <div style={{
-                            flex: "1 1 220px", background: "#fff",
-                            border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px",
-                          }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                              <span style={{ fontSize: 14 }}>🤖</span>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em" }}>AI Summary</span>
-                            </div>
-                            <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, margin: 0 }}>{aiSummary}</p>
-                          </div>
-                        )}
+                        {/* Left column: AI Summary + Profile Info */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: "1 1 220px" }}>
 
-                        {/* Match Dimensions */}
+                          {/* AI Summary */}
+                          {aiSummary && (
+                            <div style={{ background: "#fff", border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                                <span style={{ fontSize: 14 }}>🤖</span>
+                                <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em" }}>AI Summary</span>
+                              </div>
+                              <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, margin: 0 }}>{aiSummary}</p>
+                            </div>
+                          )}
+
+                          {/* Profile: Experience + AI Score */}
+                          <div style={{ background: "#fff", border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                              <span style={{ fontSize: 13 }}>👤</span>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em" }}>Profile</span>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, color: "#6b7280" }}>Experience</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e1b4b" }}>
+                                  {c.yoe && c.yoe !== "N/A" ? `${c.yoe}` : `${c.rounds.filter(r => r.status === "passed").length} rounds cleared`}
+                                </span>
+                              </div>
+                              {c.aiScore != null && c.aiScore > 0 && (
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ fontSize: 12, color: "#6b7280" }}>AI Resume Score</span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    {/* mini circular-ish score badge */}
+                                    <div style={{ position: "relative", width: 40, height: 40 }}>
+                                      <svg width="40" height="40" viewBox="0 0 40 40">
+                                        <circle cx="20" cy="20" r="16" fill="none" stroke="#f0eef8" strokeWidth="4"/>
+                                        <circle cx="20" cy="20" r="16" fill="none"
+                                          stroke="url(#scoreGrad)" strokeWidth="4"
+                                          strokeDasharray={`${(c.aiScore / 100) * 100.5} 100.5`}
+                                          strokeLinecap="round"
+                                          transform="rotate(-90 20 20)"/>
+                                        <defs>
+                                          <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="#6ec6f5"/>
+                                            <stop offset="100%" stopColor="#a78bfa"/>
+                                          </linearGradient>
+                                        </defs>
+                                      </svg>
+                                      <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center",
+                                        justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#1e1b4b" }}>
+                                        {c.aiScore}
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: 11, color: "#6b7280" }}>/100</span>
+                                  </div>
+                                </div>
+                              )}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, color: "#6b7280" }}>Email</span>
+                                <span style={{ fontSize: 12, color: "#4f46e5" }}>{c.email}</span>
+                              </div>
+                              {dec?.hr_approved_at && (
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ fontSize: 12, color: "#6b7280" }}>HR Approved</span>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46" }}>
+                                    {new Date(dec.hr_approved_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Middle: Match Dimensions */}
                         {dimensions.some(d => d.pct > 0) && (
-                          <div style={{
-                            flex: "1 1 200px", background: "#fff",
-                            border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px",
-                          }}>
+                          <div style={{ flex: "1 1 200px", background: "#fff", border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                               <span style={{ fontSize: 13 }}>📈</span>
                               <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em" }}>Match Dimensions</span>
@@ -355,38 +423,36 @@ export default function ManagerCandidates() {
                           </div>
                         )}
 
-                        {/* Skills */}
-                        {aggSkills.length > 0 && (
-                          <div style={{
-                            flex: "1 1 200px", background: "#fff",
-                            border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px",
-                          }}>
+                        {/* Right: Skills */}
+                        {displaySkills.length > 0 && (
+                          <div style={{ flex: "1 1 200px", background: "#fff", border: "1px solid rgba(221,208,232,0.4)", borderRadius: 12, padding: "16px 18px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                               <span style={{ fontSize: 13 }}>✅</span>
                               <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em" }}>Skills</span>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                              {aggSkills.map(({ skill, pct }) => (
+                              {displaySkills.map(({ skill, rating, pct }) => (
                                 <div key={skill} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                  <span style={{ fontSize: 12, color: "#374151", width: 110, flexShrink: 0, wordBreak: "break-word" }}>{skill}</span>
+                                  <span style={{ fontSize: 12, color: "#374151", width: 130, flexShrink: 0, wordBreak: "break-word" }}>{skill}</span>
                                   <GradBar pct={pct}/>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: "#1e1b4b", width: 36, textAlign: "right" }}>{pct}%</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#1e1b4b", width: 40, textAlign: "right", flexShrink: 0 }}>{rating}</span>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {/* Fallback when no feedback yet */}
-                        {!aiSummary && dimensions.every(d => d.pct === 0) && aggSkills.length === 0 && (
-                          <div style={{
-                            flex: 1, background: "#fff", border: "1px solid rgba(221,208,232,0.4)",
-                            borderRadius: 12, padding: "20px 18px",
-                            display: "flex", gap: 24, flexWrap: "wrap",
-                          }}>
+                        {/* Fallback when nothing available */}
+                        {!aiSummary && dimensions.every(d => d.pct === 0) && displaySkills.length === 0 && (
+                          <div style={{ flex: 1, background: "#fff", border: "1px solid rgba(221,208,232,0.4)",
+                            borderRadius: 12, padding: "20px 18px", display: "flex", gap: 24, flexWrap: "wrap" }}>
                             <div>
                               <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>Email</div>
                               <div style={{ fontSize: 13, color: "#1e1b4b" }}>{c.email}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>Experience</div>
+                              <div style={{ fontSize: 13, color: "#1e1b4b" }}>{c.yoe && c.yoe !== "N/A" ? c.yoe : "—"}</div>
                             </div>
                             <div>
                               <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>Rounds Progress</div>
@@ -394,19 +460,15 @@ export default function ManagerCandidates() {
                                 {c.rounds.map((r, i) => {
                                   const done = r.status === "passed"; const fail = r.status === "failed"; const act = r.status === "active";
                                   return (
-                                    <span key={i} style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: done ? "rgba(16,185,129,0.12)" : fail ? "rgba(220,38,38,0.1)" : act ? "rgba(245,158,11,0.12)" : "rgba(221,208,232,0.35)", color: done ? "#065f46" : fail ? "#b91c1c" : act ? "#92400e" : "#9ca3af" }}>
+                                    <span key={i} style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+                                      background: done ? "rgba(16,185,129,0.12)" : fail ? "rgba(220,38,38,0.1)" : act ? "rgba(245,158,11,0.12)" : "rgba(221,208,232,0.35)",
+                                      color: done ? "#065f46" : fail ? "#b91c1c" : act ? "#92400e" : "#9ca3af" }}>
                                       R{r.roundNo} {done ? "✓" : fail ? "✗" : act ? "●" : "○"}
                                     </span>
                                   );
                                 })}
                               </div>
                             </div>
-                            {dec?.hr_approved_at && (
-                              <div>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>HR Approved</div>
-                                <div style={{ fontSize: 13, color: "#4f46e5", fontWeight: 600 }}>{new Date(dec.hr_approved_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>
-                              </div>
-                            )}
                             <div>
                               <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>Manager Decision</div>
                               {managerBadge(dec) ?? <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}

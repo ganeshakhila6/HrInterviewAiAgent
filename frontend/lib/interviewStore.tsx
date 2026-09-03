@@ -44,6 +44,11 @@ export type Candidate = {
   email: string;
   role: string;
   rounds: Round[];
+  /* enriched profile fields from interview_details / candidates collection */
+  yoe?:        string;
+  aiScore?:    number;
+  skills?:     string;   /* raw comma-separated string e.g. "Apex: 4/5, SOQL: 3/5" */
+  summary?:    string;   /* AI analysis summary */
 };
 
 /* ΓöÇΓöÇ Seed data ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
@@ -219,6 +224,12 @@ export function normalizeCandidate(raw: any): Candidate {
     email:    raw.email    || "",
     role:     raw.role     || "Candidate",
     rounds,
+    yoe:      raw.yoe      || raw.years_experience || undefined,
+    aiScore:  raw.score    != null ? Number(raw.score)
+            : raw.ai_score != null ? Number(raw.ai_score)
+            : undefined,
+    skills:   raw.skills   || undefined,
+    summary:  raw.summary  || raw.analysis_summary || undefined,
   };
 }
 
