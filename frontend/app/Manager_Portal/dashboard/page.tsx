@@ -6,7 +6,7 @@ import { useInterviewStore } from "@/lib/interviewStore";
 import type { Candidate } from "@/lib/interviewStore";
 import { getCandidatesAwaitingApproval } from "@/lib/managerFeedback";
 import {
-  Briefcase, Users, Clock, MapPin, ChevronRight,
+  Briefcase, Users, Clock, MapPin, ChevronDown,
   MessageSquare, ThumbsUp, ThumbsDown, CheckCircle,
   ArrowRight, XCircle, RefreshCw, AlertCircle, Linkedin,
 } from "lucide-react";
@@ -15,7 +15,6 @@ const MANAGER_API     = process.env.NEXT_PUBLIC_MANAGER_API_BASE_URL || "http://
 const HR_API          = process.env.NEXT_PUBLIC_API_BASE_URL         || "http://localhost:8000";
 const JOBS_REFRESH_MS = 30_000;
 
-/* Shape returned by GET /manager/approved-candidates */
 type PendingCandidate = {
   candidate_id:    string;
   candidate_name:  string;
@@ -31,7 +30,6 @@ type PendingCandidate = {
   status:          "pending_manager" | "approved" | "rejected";
 };
 
-/* Shape normalised from /jobs-page */
 type HiringRole = {
   id:           number;
   title:        string;
@@ -46,6 +44,7 @@ type HiringRole = {
   experience:   string;
   job_offer_id: string;
   source:       "salesforce" | "linkedin" | string;
+  pipeline:     any[];
 };
 
 function normalizeJobs(raw: any[]): HiringRole[] {
@@ -63,125 +62,253 @@ function normalizeJobs(raw: any[]): HiringRole[] {
     experience:   j.experience   || "",
     job_offer_id: j.job_offer_id || "",
     source:       j.source       || "salesforce",
+    pipeline:     j.pipeline     || [],
   }));
 }
 
-const pill  = (bg: string, color: string) =>
-  ({ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:bg, color } as React.CSSProperties);
-const card: React.CSSProperties = {
-  background:"#fff", border:"1px solid rgba(221,208,232,0.4)",
-  borderRadius:14, padding:"20px 22px", marginBottom:24,
+const outerCard: React.CSSProperties = {
+  background:"#fff", border:"1px solid #e5e7eb",
+  borderRadius:14, marginBottom:24, overflow:"hidden",
 };
 
-/* ── Source badge colours ── */
-const SF_BG    = "rgba(0,161,224,0.1)";
-const SF_COLOR = "#0066b3";
-const LI_BG    = "rgba(10,102,194,0.1)";
-const LI_COLOR = "#0a66c2";
+/* ── Source section banner ─────────────────────────────────────────────────── */
+function SourceBanner({
+  source, totalJobs, activeJobs, totalCandidates,
+}: {
+  source: "salesforce" | "linkedin";
+  totalJobs: number;
+  activeJobs: number;
+  totalCandidates: number;
+}) {
+  const isSF = source === "salesforce";
+  const bg        = isSF ? "#e8f4fb" : "#e8f0fb";
+  const iconBg    = isSF ? "#00a1e0" : "#0a66c2";
+  const titleColor = isSF ? "#0066b3" : "#0a66c2";
+  const subColor   = "#6b7280";
 
-function SourceBadge({ source }: { source: string }) {
-  if (source === "linkedin") {
-    return (
-      <span style={{ display:"inline-flex", alignItems:"center", gap:4,
-        padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700,
-        background:LI_BG, color:LI_COLOR }}>
-        <Linkedin size={9}/> LinkedIn
-      </span>
-    );
-  }
-  return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4,
-      padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700,
-      background:SF_BG, color:SF_COLOR }}>
-      ☁ Salesforce
-    </span>
-  );
-}
-
-/* ── Single job card ── */
-function JobCard({ r, onView }: { r: HiringRole; onView: (r: HiringRole) => void }) {
   return (
     <div style={{
-      border:"1px solid rgba(221,208,232,0.5)", borderRadius:10,
-      padding:"14px 16px", opacity: r.status !== "Active" ? 0.65 : 1,
-      display:"flex", flexDirection:"column", justifyContent:"space-between",
+      background: bg, padding:"14px 20px",
+      display:"flex", alignItems:"center", justifyContent:"space-between",
+      borderBottom:"1px solid #e5e7eb",
     }}>
-      <div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b",
-              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-              {r.title}
-            </div>
-            <div style={{ fontSize:11, color:"#9ca3af", marginTop:2 }}>{r.dept}</div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0, marginLeft:6 }}>
-            {r.urgent && <span style={pill("rgba(239,68,68,0.1)","#dc2626")}>Urgent</span>}
-            {r.status !== "Active" && <span style={pill("rgba(156,163,175,0.15)","#6b7280")}>{r.status}</span>}
-          </div>
+      {/* Left: icon + title */}
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{
+          width:42, height:42, borderRadius:10, background:iconBg,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          flexShrink:0,
+        }}>
+          {isSF
+            ? <span style={{ color:"#fff", fontSize:18, fontWeight:900 }}>☁</span>
+            : <Linkedin size={20} color="#fff" strokeWidth={2.5}/>
+          }
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:4, fontSize:12, color:"#6b7280" }}>
-          <span><MapPin size={10} style={{ display:"inline", marginRight:4 }}/>{r.location}</span>
-          <span><Users size={10} style={{ display:"inline", marginRight:4 }}/>{r.candidates} applicants</span>
-          <span><Clock size={10} style={{ display:"inline", marginRight:4 }}/>Posted {r.posted}</span>
+        <div>
+          <div style={{ fontSize:15, fontWeight:800, color:titleColor }}>
+            {isSF ? "Salesforce" : "LinkedIn"}
+            <span style={{ fontWeight:400, color:"#6b7280", marginLeft:6 }}>— Job Openings</span>
+          </div>
+          <div style={{ fontSize:12, color:subColor, marginTop:2 }}>
+            {isSF
+              ? "Jobs and candidate pipeline synced from Salesforce CRM"
+              : "Job postings and applicants sourced from LinkedIn Recruiter"}
+          </div>
         </div>
       </div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:10 }}>
-        <span style={pill("rgba(99,102,241,0.1)","#4f46e5")}>
-          {r.openings} opening{r.openings > 1 ? "s" : ""}
-        </span>
-        <span
-          onClick={() => onView(r)}
-          style={{ fontSize:12, color:"#6366F1", fontWeight:600, cursor:"pointer",
-            display:"flex", alignItems:"center", gap:2 }}
-        >
-          View <ChevronRight size={12}/>
-        </span>
+      {/* Right: stats */}
+      <div style={{ display:"flex", gap:20, flexShrink:0, marginLeft:16 }}>
+        {[
+          { val: totalJobs,       label: "jobs" },
+          { val: activeJobs,      label: "active" },
+          { val: totalCandidates, label: "candidates" },
+        ].map(({ val, label }) => (
+          <div key={label} style={{ textAlign:"right" }}>
+            <span style={{ fontSize:14, fontWeight:800, color:"#1e1b4b" }}>{val}</span>
+            <span style={{ fontSize:12, color:"#6b7280", marginLeft:4 }}>{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ── Sub-section: one source group ── */
-function RoleGroup({
-  label, icon, accentBg, accentColor, roles, onView,
-}: {
-  label:        string;
-  icon:         React.ReactNode;
-  accentBg:     string;
-  accentColor:  string;
-  roles:        HiringRole[];
-  onView:       (r: HiringRole) => void;
-}) {
-  if (roles.length === 0) return null;
+/* ── Pipeline dropdown ─────────────────────────────────────────────────────── */
+function PipelineDropdown({ pipeline }: { pipeline: any[] }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div style={{ marginBottom:20 }}>
-      {/* Sub-header */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-        <div style={{ width:24, height:24, borderRadius:6, background:accentBg,
-          color:accentColor, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          {icon}
+    <div style={{ position:"relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display:"inline-flex", alignItems:"center", gap:5,
+          padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:600,
+          background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.22)",
+          color:"#4f46e5", cursor:"pointer", fontFamily:"inherit",
+        }}
+      >
+        <Users size={12}/> Pipeline <ChevronDown size={11}/>
+      </button>
+      {open && (
+        <div style={{
+          position:"absolute", bottom:"calc(100% + 6px)", left:0, zIndex:50,
+          background:"#fff", border:"1px solid #e5e7eb", borderRadius:10,
+          boxShadow:"0 8px 24px rgba(30,27,75,0.12)", minWidth:220, padding:"10px 0",
+        }}>
+          {pipeline.length === 0 ? (
+            <div style={{ padding:"8px 14px", fontSize:12, color:"#9ca3af" }}>No candidates yet</div>
+          ) : (
+            pipeline.slice(0, 6).map((p: any, i: number) => (
+              <div key={i} style={{
+                display:"flex", alignItems:"center", gap:10,
+                padding:"7px 14px", borderBottom: i < pipeline.length - 1 ? "1px solid #f3f4f6" : "none",
+              }}>
+                <div style={{
+                  width:28, height:28, borderRadius:"50%", background: p.color || "#6366f1",
+                  color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:10, fontWeight:700, flexShrink:0,
+                }}>
+                  {p.initials || (p.name || "?")[0]}
+                </div>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#1e1b4b",
+                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {p.name}
+                  </div>
+                  <div style={{ fontSize:11, color:"#9ca3af" }}>Score: {p.score ?? "—"}</div>
+                </div>
+              </div>
+            ))
+          )}
+          {pipeline.length > 6 && (
+            <div style={{ padding:"6px 14px", fontSize:11, color:"#9ca3af" }}>
+              +{pipeline.length - 6} more
+            </div>
+          )}
         </div>
-        <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>{label}</span>
-        <span style={{ fontSize:11, fontWeight:600, color:"#9ca3af" }}>
-          {roles.filter(r => r.status === "Active").length} active
+      )}
+    </div>
+  );
+}
+
+/* ── Single job card ───────────────────────────────────────────────────────── */
+function JobCard({ r, onViewDesc }: { r: HiringRole; onViewDesc: (r: HiringRole) => void }) {
+  const isSF      = r.source !== "linkedin";
+  const accentColor = isSF ? "#00a1e0" : "#0a66c2";
+
+  return (
+    <div style={{
+      background:"#fff",
+      border:"1px solid #e5e7eb",
+      borderLeft:`3px solid ${accentColor}`,
+      borderRadius:10,
+      padding:"16px 18px",
+      display:"flex", flexDirection:"column",
+      opacity: r.status !== "Active" ? 0.68 : 1,
+    }}>
+      {/* Title row */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
+        <div style={{ fontSize:14, fontWeight:800, color:"#1e1b4b", lineHeight:1.3 }}>{r.title}</div>
+        {r.status === "Active"
+          ? <span style={{ padding:"2px 10px", borderRadius:20, fontSize:11, fontWeight:700,
+              background:"rgba(16,185,129,0.1)", color:"#065f46", flexShrink:0, marginLeft:8 }}>Active</span>
+          : <span style={{ padding:"2px 10px", borderRadius:20, fontSize:11, fontWeight:700,
+              background:"rgba(156,163,175,0.12)", color:"#6b7280", flexShrink:0, marginLeft:8 }}>{r.status}</span>
+        }
+      </div>
+      <div style={{ fontSize:12, color:accentColor, fontWeight:600, marginBottom:12 }}>{r.dept}</div>
+
+      {/* Meta rows */}
+      <div style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, color:"#6b7280", marginBottom:14 }}>
+        <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <MapPin size={11} color="#9ca3af"/> {r.location}
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <Briefcase size={11} color="#9ca3af"/> {r.experience || "N/A"}
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <Users size={11} color="#9ca3af"/> {r.candidates} candidates
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <Clock size={11} color="#9ca3af"/> {r.posted}
         </span>
       </div>
-      {/* Cards grid */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:12 }}>
-        {roles.map(r => <JobCard key={r.id} r={r} onView={onView} />)}
+
+      {/* Action buttons */}
+      <div style={{ display:"flex", gap:8, marginTop:"auto" }}>
+        <button
+          onClick={() => onViewDesc(r)}
+          style={{
+            display:"inline-flex", alignItems:"center", gap:5,
+            padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:600,
+            background:"#fff", border:"1px solid #d1d5db",
+            color:"#374151", cursor:"pointer", fontFamily:"inherit",
+          }}
+        >
+          <ChevronDown size={12}/> View desc
+        </button>
+        <PipelineDropdown pipeline={r.pipeline}/>
       </div>
     </div>
   );
 }
 
+/* ── Source group (banner + grid) ──────────────────────────────────────────── */
+function SourceGroup({
+  source, roles, onViewDesc, loading,
+}: {
+  source:      "salesforce" | "linkedin";
+  roles:       HiringRole[];
+  onViewDesc:  (r: HiringRole) => void;
+  loading:     boolean;
+}) {
+  const activeJobs      = roles.filter(r => r.status === "Active").length;
+  const totalCandidates = roles.reduce((s, r) => s + r.candidates, 0);
+
+  return (
+    <div style={outerCard}>
+      <SourceBanner
+        source={source}
+        totalJobs={roles.length}
+        activeJobs={activeJobs}
+        totalCandidates={totalCandidates}
+      />
+
+      <div style={{ padding:"18px 20px" }}>
+        {loading && roles.length === 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:12 }}>
+            {[1,2,3].map(n => (
+              <div key={n} style={{ borderRadius:10, height:160,
+                background:"linear-gradient(90deg,#f8f7ff 25%,#f0eef8 50%,#f8f7ff 75%)",
+                backgroundSize:"200% 100%", animation:"shimmer 1.4s infinite" }}/>
+            ))}
+          </div>
+        )}
+
+        {!loading && roles.length === 0 && (
+          <p style={{ fontSize:13, color:"#9ca3af", margin:0, padding:"4px 0" }}>
+            No {source === "linkedin" ? "LinkedIn" : "Salesforce"} jobs found.
+          </p>
+        )}
+
+        {roles.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:12 }}>
+            {roles.map(r => <JobCard key={r.id} r={r} onViewDesc={onViewDesc}/>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
 export default function ManagerDashboard() {
   const { candidates, managerDecisions, approveManagerFeedback, rejectManagerFeedback } = useInterviewStore();
   const router = useRouter();
   const [summaryCandidate, setSummaryCandidate] = useState<Candidate | null>(null);
   const [selectedRole,     setSelectedRole]     = useState<HiringRole | null>(null);
 
-  /* ── Live job roles from HR backend ── */
+  /* ── Job roles ── */
   const [hiringRoles,  setHiringRoles]  = useState<HiringRole[]>([]);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [rolesError,   setRolesError]   = useState(false);
@@ -207,11 +334,10 @@ export default function ManagerDashboard() {
     return () => clearInterval(id);
   }, [fetchJobs]);
 
-  /* split by source */
   const sfRoles = hiringRoles.filter(r => r.source !== "linkedin");
   const liRoles = hiringRoles.filter(r => r.source === "linkedin");
 
-  /* ── Pending approvals from manager backend ── */
+  /* ── Pending approvals ── */
   const [pendingApprovals, setPendingApprovals] = useState<PendingCandidate[]>([]);
   const [pendingLoading,   setPendingLoading]   = useState(false);
   const [pendingError,     setPendingError]     = useState<string | null>(null);
@@ -220,7 +346,7 @@ export default function ManagerDashboard() {
     setPendingLoading(true);
     setPendingError(null);
     try {
-      const res = await fetch(`${MANAGER_API}/manager/approved-candidates?status=pending_manager`);
+      const res  = await fetch(`${MANAGER_API}/manager/approved-candidates?status=pending_manager`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
       setPendingApprovals(data.candidates || []);
@@ -234,7 +360,6 @@ export default function ManagerDashboard() {
 
   useEffect(() => { fetchPendingApprovals(); }, []);
 
-  /* local decision override */
   const [localDecisions, setLocalDecisions] = useState<Record<string, "approved" | "rejected">>({});
 
   async function submitDecision(candidateId: string, decision: "approved" | "rejected") {
@@ -263,92 +388,39 @@ export default function ManagerDashboard() {
         <p style={{ fontSize:13, color:"#9ca3af", marginTop:4 }}>Your hiring pipeline at a glance</p>
       </div>
 
-      {/* ── Actively Hiring Roles ─────────────────────────────────────── */}
-      <div style={card}>
-        {/* Card header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, fontSize:15, fontWeight:700, color:"#1e1b4b" }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:"rgba(99,102,241,0.1)",
-              color:"#6366F1", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Briefcase size={16}/>
-            </div>
-            Actively Hiring Roles
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            {rolesError && (
-              <span style={{ fontSize:11, color:"#f59e0b", display:"flex", alignItems:"center", gap:4 }}>
-                <AlertCircle size={11}/> Showing cached data
-              </span>
-            )}
-            <span style={{ fontSize:12, color:"#9ca3af", fontWeight:600 }}>
-              {rolesLoading ? "Loading…" : `${hiringRoles.filter(r => r.status === "Active").length} open`}
-            </span>
-            <button
-              onClick={fetchJobs}
-              disabled={rolesLoading}
-              style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"4px 10px",
-                background:"transparent", border:"1px solid rgba(221,208,232,0.5)", borderRadius:7,
-                fontSize:11, fontWeight:600, color:"#9ca3af", cursor:"pointer",
-                fontFamily:"inherit", opacity: rolesLoading ? 0.6 : 1 }}
-            >
-              <RefreshCw size={10} style={{ animation: rolesLoading ? "spin 1s linear infinite" : "none" }}/>
-              {rolesLoading ? "…" : "Refresh"}
-            </button>
-          </div>
+      {/* ── Refresh / error bar ── */}
+      {rolesError && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 16px",
+          background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)",
+          borderRadius:10, fontSize:12, color:"#92400e", marginBottom:16 }}>
+          <AlertCircle size={14}/>
+          Could not refresh jobs — showing cached data.
+          <button onClick={fetchJobs} style={{ marginLeft:"auto", background:"none", border:"none",
+            cursor:"pointer", color:"#b45309", fontWeight:600, fontSize:12, fontFamily:"inherit" }}>
+            Retry
+          </button>
         </div>
+      )}
 
-        {/* Loading skeleton */}
-        {rolesLoading && hiringRoles.length === 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:12 }}>
-            {[1,2,3,4,5,6].map(n => (
-              <div key={n} style={{ border:"1px solid rgba(221,208,232,0.4)", borderRadius:10,
-                padding:"14px 16px", height:120,
-                background:"linear-gradient(90deg,#f8f7ff 25%,#f0eef8 50%,#f8f7ff 75%)",
-                backgroundSize:"200% 100%", animation:"shimmer 1.4s infinite" }}/>
-            ))}
-          </div>
-        )}
+      {/* ── Salesforce section ── */}
+      <SourceGroup
+        source="salesforce"
+        roles={sfRoles}
+        onViewDesc={setSelectedRole}
+        loading={rolesLoading}
+      />
 
-        {/* Empty state */}
-        {!rolesLoading && hiringRoles.length === 0 && (
-          <p style={{ fontSize:13, color:"#9ca3af", padding:"8px 0" }}>
-            No active job roles found. Add jobs in the HR Jobs page.
-          </p>
-        )}
+      {/* ── LinkedIn section ── */}
+      <SourceGroup
+        source="linkedin"
+        roles={liRoles}
+        onViewDesc={setSelectedRole}
+        loading={rolesLoading}
+      />
 
-        {/* ── Salesforce jobs ── */}
-        {!rolesLoading && sfRoles.length > 0 && (
-          <>
-            {/* divider only when both sources exist */}
-            <RoleGroup
-              label="Salesforce Jobs"
-              icon={<span style={{ fontSize:12 }}>☁</span>}
-              accentBg={SF_BG}
-              accentColor={SF_COLOR}
-              roles={sfRoles}
-              onView={setSelectedRole}
-            />
-            {liRoles.length > 0 && (
-              <div style={{ borderTop:"1px solid rgba(221,208,232,0.4)", margin:"4px 0 20px" }}/>
-            )}
-          </>
-        )}
-
-        {/* ── LinkedIn jobs ── */}
-        {!rolesLoading && liRoles.length > 0 && (
-          <RoleGroup
-            label="LinkedIn Jobs"
-            icon={<Linkedin size={12}/>}
-            accentBg={LI_BG}
-            accentColor={LI_COLOR}
-            roles={liRoles}
-            onView={setSelectedRole}
-          />
-        )}
-      </div>
-
-      {/* ── Waiting for Your Approval ─────────────────────────────────── */}
-      <div style={card}>
+      {/* ── Waiting for Your Approval ── */}
+      <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14,
+        padding:"20px 22px", marginBottom:24 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, fontSize:15, fontWeight:700, color:"#1e1b4b" }}>
             <div style={{ width:32, height:32, borderRadius:8, background:"rgba(245,158,11,0.1)",
@@ -363,24 +435,19 @@ export default function ManagerDashboard() {
               </span>
             )}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button
-              onClick={fetchPendingApprovals}
-              disabled={pendingLoading}
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={fetchPendingApprovals} disabled={pendingLoading}
               style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 11px",
-                background:"transparent", border:"1px solid rgba(221,208,232,0.5)", borderRadius:8,
-                fontSize:12, fontWeight:600, color:"#9ca3af", cursor:"pointer", fontFamily:"inherit" }}
-            >
+                background:"transparent", border:"1px solid #e5e7eb", borderRadius:8,
+                fontSize:12, fontWeight:600, color:"#9ca3af", cursor:"pointer", fontFamily:"inherit" }}>
               <RefreshCw size={11} style={{ animation: pendingLoading ? "spin 1s linear infinite" : "none" }}/>
               {pendingLoading ? "Loading…" : "Refresh"}
             </button>
-            <button
-              onClick={() => router.push("/Manager_Portal/interviews")}
+            <button onClick={() => router.push("/Manager_Portal/interviews")}
               style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 14px",
                 background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)",
                 borderRadius:8, fontSize:12, fontWeight:600, color:"#4f46e5",
-                cursor:"pointer", fontFamily:"inherit" }}
-            >
+                cursor:"pointer", fontFamily:"inherit" }}>
               View All <ArrowRight size={12}/>
             </button>
           </div>
@@ -390,14 +457,13 @@ export default function ManagerDashboard() {
           <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px",
             background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)",
             borderRadius:9, fontSize:12, color:"#92400e", marginBottom:12 }}>
-            <AlertCircle size={14} style={{ flexShrink:0 }}/>
-            {pendingError}
+            <AlertCircle size={14} style={{ flexShrink:0 }}/> {pendingError}
           </div>
         )}
 
         {!pendingLoading && !pendingError && pendingApprovals.length === 0 && (
-          <p style={{ fontSize:13, color:"#9ca3af", padding:"8px 0" }}>
-            No candidates are pending your approval. When HR approves a candidate, they will appear here.
+          <p style={{ fontSize:13, color:"#9ca3af", padding:"8px 0", margin:0 }}>
+            No candidates pending approval. When HR approves a candidate, they'll appear here.
           </p>
         )}
 
@@ -409,9 +475,7 @@ export default function ManagerDashboard() {
                   {["Candidate","Role","Rounds","HR Rating","HR Approved","Actions"].map(h => (
                     <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontSize:11,
                       fontWeight:700, color:"#9ca3af", textTransform:"uppercase",
-                      letterSpacing:"0.05em", borderBottom:"1px solid rgba(221,208,232,0.3)" }}>
-                      {h}
-                    </th>
+                      letterSpacing:"0.05em", borderBottom:"1px solid #e5e7eb" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -420,18 +484,16 @@ export default function ManagerDashboard() {
                   const dec = localDecisions[ac.candidate_id] ?? ac.status;
                   return (
                     <tr key={ac.candidate_id} style={{
-                      borderBottom:"1px solid rgba(221,208,232,0.2)",
+                      borderBottom:"1px solid #f3f4f6",
                       background: dec === "approved" ? "rgba(240,253,244,0.5)"
-                                : dec === "rejected" ? "rgba(254,242,242,0.4)" : "#fff",
+                                : dec === "rejected"  ? "rgba(254,242,242,0.4)" : "#fff",
                     }}>
                       <td style={{ padding:"12px 14px" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
                           <div style={{ width:32, height:32, borderRadius:"50%",
                             background: ac.color || "#6366f1", color:"#fff",
                             display:"flex", alignItems:"center", justifyContent:"center",
-                            fontSize:11, fontWeight:700, flexShrink:0 }}>
-                            {ac.initials}
-                          </div>
+                            fontSize:11, fontWeight:700, flexShrink:0 }}>{ac.initials}</div>
                           <div>
                             <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b" }}>{ac.candidate_name}</div>
                             <div style={{ fontSize:11, color:"#9ca3af" }}>{ac.candidate_email}</div>
@@ -444,13 +506,9 @@ export default function ManagerDashboard() {
                           {(ac.rounds || []).map((r, i) => (
                             <span key={i} style={{ padding:"2px 8px", borderRadius:20, fontSize:10,
                               fontWeight:700, background:"rgba(52,199,89,0.12)", color:"#1a7a3a",
-                              border:"1px solid rgba(52,199,89,0.25)" }}>
-                              R{r.roundNo} ✓
-                            </span>
+                              border:"1px solid rgba(52,199,89,0.25)" }}>R{r.roundNo} ✓</span>
                           ))}
-                          {(!ac.rounds || ac.rounds.length === 0) && (
-                            <span style={{ fontSize:11, color:"#9ca3af" }}>—</span>
-                          )}
+                          {(!ac.rounds || ac.rounds.length === 0) && <span style={{ fontSize:11, color:"#9ca3af" }}>—</span>}
                         </div>
                       </td>
                       <td style={{ padding:"12px 14px" }}>
@@ -458,16 +516,12 @@ export default function ManagerDashboard() {
                           <div>
                             <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b" }}>⭐ {ac.overall_rating}/5</div>
                             {ac.recommendation && (
-                              <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px",
-                                borderRadius:20, background:"rgba(168,152,216,0.15)",
-                                color:"#5A4878", display:"inline-block", marginTop:3 }}>
-                                {ac.recommendation}
-                              </span>
+                              <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20,
+                                background:"rgba(168,152,216,0.15)", color:"#5A4878",
+                                display:"inline-block", marginTop:3 }}>{ac.recommendation}</span>
                             )}
                           </div>
-                        ) : (
-                          <span style={{ fontSize:12, color:"#9ca3af" }}>—</span>
-                        )}
+                        ) : <span style={{ fontSize:12, color:"#9ca3af" }}>—</span>}
                       </td>
                       <td style={{ padding:"12px 14px", fontSize:12, color:"#6b7280" }}>
                         {ac.hr_approved_at
@@ -476,33 +530,27 @@ export default function ManagerDashboard() {
                       </td>
                       <td style={{ padding:"12px 14px" }}>
                         {dec === "approved" ? (
-                          <span style={{ display:"inline-flex", alignItems:"center", gap:5,
-                            fontSize:12, fontWeight:700, color:"#065f46" }}>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12, fontWeight:700, color:"#065f46" }}>
                             <CheckCircle size={13}/> Approved
                           </span>
                         ) : dec === "rejected" ? (
-                          <span style={{ display:"inline-flex", alignItems:"center", gap:5,
-                            fontSize:12, fontWeight:700, color:"#dc2626" }}>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12, fontWeight:700, color:"#dc2626" }}>
                             <XCircle size={13}/> Rejected
                           </span>
                         ) : (
-                          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-                            <button
-                              onClick={() => submitDecision(ac.candidate_id, "approved")}
+                          <div style={{ display:"flex", gap:7 }}>
+                            <button onClick={() => submitDecision(ac.candidate_id, "approved")}
                               style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 12px",
                                 background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.3)",
                                 borderRadius:8, fontSize:12, fontWeight:600, color:"#065f46",
-                                cursor:"pointer", fontFamily:"inherit" }}
-                            >
+                                cursor:"pointer", fontFamily:"inherit" }}>
                               <ThumbsUp size={11}/> Approve
                             </button>
-                            <button
-                              onClick={() => submitDecision(ac.candidate_id, "rejected")}
+                            <button onClick={() => submitDecision(ac.candidate_id, "rejected")}
                               style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 12px",
                                 background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)",
                                 borderRadius:8, fontSize:12, fontWeight:600, color:"#dc2626",
-                                cursor:"pointer", fontFamily:"inherit" }}
-                            >
+                                cursor:"pointer", fontFamily:"inherit" }}>
                               <ThumbsDown size={11}/> Reject
                             </button>
                           </div>
@@ -521,26 +569,19 @@ export default function ManagerDashboard() {
         <ManagerSummaryModal candidate={summaryCandidate} onClose={() => setSummaryCandidate(null)} />
       )}
 
-      {/* ── Job Description Modal ────────────────────────────────────────── */}
+      {/* ── Job Description Modal ── */}
       {selectedRole && (
-        <div
-          onClick={() => setSelectedRole(null)}
-          style={{
-            position:"fixed", inset:0, zIndex:1000,
-            background:"rgba(30,27,75,0.45)", backdropFilter:"blur(4px)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            padding:"20px",
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background:"#fff", borderRadius:16, width:"100%", maxWidth:660,
-              maxHeight:"88vh", display:"flex", flexDirection:"column",
-              boxShadow:"0 24px 60px rgba(30,27,75,0.18)", overflow:"hidden",
-            }}
-          >
-            {/* Modal header */}
+        <div onClick={() => setSelectedRole(null)} style={{
+          position:"fixed", inset:0, zIndex:1000,
+          background:"rgba(30,27,75,0.45)", backdropFilter:"blur(4px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:"20px",
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background:"#fff", borderRadius:16, width:"100%", maxWidth:660,
+            maxHeight:"88vh", display:"flex", flexDirection:"column",
+            boxShadow:"0 24px 60px rgba(30,27,75,0.18)", overflow:"hidden",
+          }}>
+            {/* Header */}
             <div style={{
               background: selectedRole.source === "linkedin"
                 ? "linear-gradient(135deg,#0a66c2,#3b8fd4)"
@@ -549,41 +590,32 @@ export default function ManagerDashboard() {
             }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <div style={{ flex:1, minWidth:0 }}>
-                  {/* Source label */}
                   <div style={{ marginBottom:8 }}>
-                    {selectedRole.source === "linkedin" ? (
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:5,
-                        padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-                        background:"rgba(255,255,255,0.2)", color:"#fff" }}>
-                        <Linkedin size={10}/> LinkedIn Job
-                      </span>
-                    ) : (
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:5,
-                        padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-                        background:"rgba(255,255,255,0.2)", color:"#fff" }}>
-                        ☁ Salesforce Job
-                      </span>
-                    )}
+                    {selectedRole.source === "linkedin"
+                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:5,
+                          padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
+                          background:"rgba(255,255,255,0.2)", color:"#fff" }}>
+                          <Linkedin size={10}/> LinkedIn Job
+                        </span>
+                      : <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
+                          background:"rgba(255,255,255,0.2)", color:"#fff" }}>
+                          ☁ Salesforce Job
+                        </span>
+                    }
                   </div>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:6 }}>
-                    {selectedRole.title}
-                  </div>
-                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.82)",
-                    display:"flex", gap:14, flexWrap:"wrap" }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:6 }}>{selectedRole.title}</div>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.82)", display:"flex", gap:14, flexWrap:"wrap" }}>
                     <span><Briefcase size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.dept}</span>
                     <span><MapPin size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.location}</span>
                     <span><Users size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.candidates} applicants</span>
                     <span><Clock size={11} style={{ display:"inline", marginRight:4 }}/>Posted {selectedRole.posted}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedRole(null)}
-                  style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:8,
-                    color:"#fff", cursor:"pointer", padding:"6px 10px", fontSize:16,
-                    lineHeight:1, flexShrink:0, marginLeft:12 }}
-                >✕</button>
+                <button onClick={() => setSelectedRole(null)} style={{
+                  background:"rgba(255,255,255,0.15)", border:"none", borderRadius:8,
+                  color:"#fff", cursor:"pointer", padding:"6px 10px", fontSize:16,
+                  lineHeight:1, flexShrink:0, marginLeft:12 }}>✕</button>
               </div>
-              {/* Pills */}
               <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
                 <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
                   background:"rgba(255,255,255,0.2)", color:"#fff" }}>
@@ -591,36 +623,23 @@ export default function ManagerDashboard() {
                 </span>
                 {selectedRole.urgent && (
                   <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-                    background:"rgba(239,68,68,0.3)", color:"#fff" }}>
-                    🔴 Urgent
-                  </span>
+                    background:"rgba(239,68,68,0.3)", color:"#fff" }}>🔴 Urgent</span>
                 )}
-                <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-                  background:"rgba(255,255,255,0.15)", color:"#fff" }}>
-                  {selectedRole.status}
-                </span>
                 {selectedRole.experience && (
                   <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-                    background:"rgba(255,255,255,0.15)", color:"#fff" }}>
-                    {selectedRole.experience}
-                  </span>
+                    background:"rgba(255,255,255,0.15)", color:"#fff" }}>{selectedRole.experience}</span>
                 )}
               </div>
             </div>
-
-            {/* Modal body — scrollable */}
+            {/* Body */}
             <div style={{ overflowY:"auto", padding:"24px 26px", flex:1 }}>
               {selectedRole.description ? (
-                <div>
+                <>
                   <div style={{ fontSize:12, fontWeight:700, color:"#1e1b4b", marginBottom:12,
-                    textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                    Job Description
-                  </div>
+                    textTransform:"uppercase", letterSpacing:"0.06em" }}>Job Description</div>
                   <div style={{ fontSize:13, color:"#374151", lineHeight:1.8,
-                    whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-                    {selectedRole.description}
-                  </div>
-                </div>
+                    whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{selectedRole.description}</div>
+                </>
               ) : (
                 <div style={{ textAlign:"center", padding:"40px 20px", color:"#9ca3af", fontSize:13 }}>
                   <Briefcase size={32} style={{ marginBottom:12, opacity:0.4 }}/>
@@ -628,26 +647,21 @@ export default function ManagerDashboard() {
                 </div>
               )}
             </div>
-
-            {/* Modal footer */}
-            <div style={{ padding:"14px 26px", borderTop:"1px solid rgba(221,208,232,0.4)",
-              display:"flex", justifyContent:"flex-end", flexShrink:0, background:"#fafafe" }}>
-              <button
-                onClick={() => setSelectedRole(null)}
-                style={{ padding:"8px 22px", borderRadius:9, fontSize:13, fontWeight:600,
-                  background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)",
-                  color:"#4f46e5", cursor:"pointer", fontFamily:"inherit" }}
-              >
-                Close
-              </button>
+            {/* Footer */}
+            <div style={{ padding:"14px 26px", borderTop:"1px solid #e5e7eb",
+              display:"flex", justifyContent:"flex-end", background:"#fafafe" }}>
+              <button onClick={() => setSelectedRole(null)} style={{
+                padding:"8px 22px", borderRadius:9, fontSize:13, fontWeight:600,
+                background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)",
+                color:"#4f46e5", cursor:"pointer", fontFamily:"inherit" }}>Close</button>
             </div>
           </div>
         </div>
       )}
 
       <style>{`
-        @keyframes spin     { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        @keyframes shimmer  { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes spin    { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
       `}</style>
     </div>
   );
