@@ -807,6 +807,7 @@ export default function FeedbackPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           candidate_id:     candidateBackendId,
+          manager_email:    managerEmail,
           hr_note:          `Candidate approved by HR for manager review. Manager email: ${managerEmail}`,
           overall_rating:   feedback?.overallRating ?? null,
           recommendation:   feedback?.overallRec ?? "",

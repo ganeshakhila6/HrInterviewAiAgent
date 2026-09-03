@@ -208,6 +208,7 @@ class HRApproveRequest(BaseModel):
     hr_note:          Optional[str]   = ""
     overall_rating:   Optional[float] = None
     recommendation:   Optional[str]   = ""
+    manager_email:    Optional[str]   = None   # manager's email — used to send notification
 
     # Fallback / override fields supplied by the frontend
     candidate_name:   Optional[str]   = None
@@ -291,6 +292,7 @@ async def hr_approve(body: HRApproveRequest):
         "overall_rating":     body.overall_rating,
         "recommendation":     body.recommendation,
         "hr_note":            body.hr_note,
+        "manager_email":      body.manager_email or "",
         "hr_approved_at":     now,
         "status":             "pending_manager",
         "manager_decision":   None,
@@ -319,12 +321,122 @@ async def hr_approve(body: HRApproveRequest):
             }},
         )
 
+    # ── Send email notification to manager ────────────────────────────────────
+    manager_email = body.manager_email or ""
+    # Also try to extract from hr_note as fallback (legacy: "... Manager email: foo@bar.com")
+    if not manager_email and body.hr_note:
+        import re as _re
+        _m = _re.search(r"Manager email:\s*(\S+)", body.hr_note or "")
+        if _m:
+            manager_email = _m.group(1).strip()
+
+    email_sent = False
+    email_error_msg = ""
+    if manager_email:
+        try:
+            # Build a clean round summary table
+            rounds_rows = ""
+            for i, r in enumerate(rounds or [], start=1):
+                status_label = r.get("status", "pending").title()
+                interviewer  = r.get("interviewer", "—")
+                date_val     = r.get("date", "TBD")
+                rating       = r.get("rating", "")
+                rating_str   = f"{rating}/5" if rating else "—"
+                rounds_rows += f"""
+<tr>
+  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">Round {i}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{interviewer}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{date_val}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{status_label}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #e9edf2;">{rating_str}</td>
+</tr>"""
+
+            rec      = body.recommendation or "—"
+            rating_v = f"{body.overall_rating}/5" if body.overall_rating else "—"
+
+            body_html = f"""
+<div style="font-family:sans-serif;max-width:620px;color:#1e1b4b;">
+  <div style="background:linear-gradient(135deg,#6366f1,#818cf8);padding:24px 28px;border-radius:12px 12px 0 0;">
+    <h2 style="color:#fff;margin:0;font-size:20px;">👤 Candidate Forwarded for Your Review</h2>
+    <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px;">
+      HR has approved a candidate and requires your managerial decision.
+    </p>
+  </div>
+
+  <div style="background:#fff;border:1px solid #e9edf2;border-top:none;border-radius:0 0 12px 12px;padding:24px 28px;">
+    <div style="background:#f8f7ff;border-left:4px solid #6366f1;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">📋 Candidate Summary</p>
+      <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
+        <tr><td style="padding:5px 0;width:160px;color:#6b7280;">Name</td>
+            <td style="padding:5px 0;"><b>{name}</b></td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;">Role</td>
+            <td style="padding:5px 0;">{role}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;">Overall Rating</td>
+            <td style="padding:5px 0;"><b>{rating_v}</b></td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;">Recommendation</td>
+            <td style="padding:5px 0;"><b>{rec}</b></td></tr>
+      </table>
+    </div>
+
+    {"" if not rounds_rows else f'''
+    <p style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">Interview Rounds</p>
+    <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;border:1px solid #e9edf2;border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr style="background:#f8faff;">
+          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Round</th>
+          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Interviewer</th>
+          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Date</th>
+          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Status</th>
+          <th style="padding:7px 10px;text-align:left;color:#6b7280;font-weight:600;">Rating</th>
+        </tr>
+      </thead>
+      <tbody>{rounds_rows}</tbody>
+    </table>
+    '''}
+
+    <p style="font-size:13px;color:#374151;margin:20px 0 8px;">
+      Please log in to the <b>Manager Portal</b> to approve or reject this candidate.
+    </p>
+    <a href="http://localhost:3000/manager-portal/interviews"
+       style="display:inline-block;padding:11px 24px;background:#6366f1;color:#fff;
+              text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">
+      Open Manager Portal →
+    </a>
+
+    <p style="font-size:11px;color:#9ca3af;margin-top:20px;">
+      This notification was sent from the RecruitAI HR Portal.
+    </p>
+  </div>
+</div>
+"""
+            async with httpx.AsyncClient() as http_client:
+                token = await _get_graph_token(http_client)
+                await _send_graph_email(
+                    http_client,
+                    token,
+                    manager_email,
+                    f"[Action Required] Candidate Review: {name} — {role}",
+                    body_html,
+                )
+            email_sent = True
+            logger.info("✅ Manager notification email sent to %s for candidate '%s'", manager_email, name)
+        except Exception as exc:
+            email_error_msg = str(exc)
+            logger.warning("⚠️  Manager email failed (non-fatal): %s", exc)
+    else:
+        logger.info("No manager_email provided — skipping notification email for '%s'", name)
+
     logger.info("HR approved candidate '%s' (%s) for manager review", name, candidate_id)
     return {
-        "success":      True,
-        "candidate_id": candidate_id,
-        "status":       "pending_manager",
-        "message":      f"{name or candidate_id} sent to Manager Portal interviews.",
+        "success":        True,
+        "candidate_id":   candidate_id,
+        "status":         "pending_manager",
+        "email_sent":     email_sent,
+        "email_error":    email_error_msg if not email_sent and email_error_msg else None,
+        "message":        f"{name or candidate_id} sent to Manager Portal interviews."
+                          + (f" Email sent to {manager_email}." if email_sent else
+                             f" (Email not sent: {email_error_msg})" if email_error_msg else
+                             " (No manager email provided.)"),
     }
 
 
