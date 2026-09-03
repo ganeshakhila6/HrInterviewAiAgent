@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import ManagerSummaryModal from "@/components/ManagerSummaryModal";
 import { useInterviewStore } from "@/lib/interviewStore";
 import type { Candidate } from "@/lib/interviewStore";
@@ -33,28 +32,34 @@ type PendingCandidate = {
 
 /* Shape normalised from /jobs-page */
 type HiringRole = {
-  id:         number;
-  title:      string;
-  dept:       string;
-  location:   string;
-  candidates: number;
-  posted:     string;
-  openings:   number;
-  urgent:     boolean;
-  status:     string;
+  id:           number;
+  title:        string;
+  dept:         string;
+  location:     string;
+  candidates:   number;
+  posted:       string;
+  openings:     number;
+  urgent:       boolean;
+  status:       string;
+  description:  string;
+  experience:   string;
+  job_offer_id: string;
 };
 
 function normalizeJobs(raw: any[]): HiringRole[] {
   return raw.map((j: any, i: number) => ({
-    id:         i + 1,
-    title:      j.title      || j.job_offer_name || "Untitled Role",
-    dept:       j.dept       || j.position_name  || "General",
-    location:   j.location   || "Remote",
-    candidates: Number(j.candidates ?? j.total_applicants ?? 0) || 0,
-    posted:     j.posted     || "Recently",
-    openings:   Number(j.openings ?? 1),
-    urgent:     Boolean(j.urgent),
-    status:     j.status     || "Active",
+    id:           i + 1,
+    title:        j.title      || j.job_offer_name || "Untitled Role",
+    dept:         j.dept       || j.position_name  || "General",
+    location:     j.location   || "Remote",
+    candidates:   Number(j.candidates ?? j.total_applicants ?? 0) || 0,
+    posted:       j.posted     || "Recently",
+    openings:     Number(j.openings ?? 1),
+    urgent:       Boolean(j.urgent),
+    status:       j.status     || "Active",
+    description:  j.description || j.jd_text || "",
+    experience:   j.experience || "",
+    job_offer_id: j.job_offer_id || "",
   }));
 }
 
@@ -108,8 +113,8 @@ function ApprovalActions({
 
 export default function ManagerDashboard() {
   const { candidates, managerDecisions, approveManagerFeedback, rejectManagerFeedback } = useInterviewStore();
-  const router = useRouter();
   const [summaryCandidate, setSummaryCandidate] = useState<Candidate | null>(null);
+  const [selectedRole, setSelectedRole] = useState<HiringRole | null>(null);
 
   /* ── Live job roles from HR backend ── */
   const [hiringRoles,    setHiringRoles]    = useState<HiringRole[]>([]);
@@ -261,7 +266,7 @@ export default function ManagerDashboard() {
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:10 }}>
                   <span style={pill("rgba(99,102,241,0.1)","#4f46e5")}>{r.openings} opening{r.openings > 1 ? "s" : ""}</span>
                   <span
-                    onClick={() => router.push("/hr_portal/jobs")}
+                    onClick={() => setSelectedRole(r)}
                     style={{ fontSize:12, color:"#6366F1", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:2 }}
                   >
                     View <ChevronRight size={12}/>
@@ -428,7 +433,123 @@ export default function ManagerDashboard() {
         <ManagerSummaryModal candidate={summaryCandidate} onClose={() => setSummaryCandidate(null)} />
       )}
 
-      <style>{`@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } } @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
+      {/* ── Job Description Modal ───────────────────────────────────────────── */}
+      {selectedRole && (
+        <div
+          onClick={() => setSelectedRole(null)}
+          style={{
+            position:"fixed", inset:0, zIndex:1000,
+            background:"rgba(30,27,75,0.45)", backdropFilter:"blur(4px)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            padding:"20px",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background:"#fff", borderRadius:16, width:"100%", maxWidth:640,
+              maxHeight:"88vh", display:"flex", flexDirection:"column",
+              boxShadow:"0 24px 60px rgba(30,27,75,0.18)",
+              overflow:"hidden",
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              background:"linear-gradient(135deg,#6366f1,#818cf8)",
+              padding:"22px 26px", flexShrink:0,
+            }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div>
+                  <div style={{ fontSize:18, fontWeight:800, color:"#fff", marginBottom:4 }}>
+                    {selectedRole.title}
+                  </div>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", display:"flex", gap:14, flexWrap:"wrap" }}>
+                    <span><Briefcase size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.dept}</span>
+                    <span><MapPin size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.location}</span>
+                    <span><Users size={11} style={{ display:"inline", marginRight:4 }}/>{selectedRole.candidates} applicants</span>
+                    <span><Clock size={11} style={{ display:"inline", marginRight:4 }}/>Posted {selectedRole.posted}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedRole(null)}
+                  style={{
+                    background:"rgba(255,255,255,0.15)", border:"none", borderRadius:8,
+                    color:"#fff", cursor:"pointer", padding:"6px 10px", fontSize:16,
+                    lineHeight:1, flexShrink:0, marginLeft:12,
+                  }}
+                >✕</button>
+              </div>
+              {/* Pills row */}
+              <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(255,255,255,0.2)", color:"#fff" }}>
+                  {selectedRole.openings} opening{selectedRole.openings > 1 ? "s" : ""}
+                </span>
+                {selectedRole.urgent && (
+                  <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(239,68,68,0.3)", color:"#fff" }}>
+                    🔴 Urgent
+                  </span>
+                )}
+                <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(255,255,255,0.15)", color:"#fff" }}>
+                  {selectedRole.status}
+                </span>
+                {selectedRole.experience && (
+                  <span style={{ padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(255,255,255,0.15)", color:"#fff" }}>
+                    {selectedRole.experience}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Body — scrollable */}
+            <div style={{ overflowY:"auto", padding:"24px 26px", flex:1 }}>
+              {selectedRole.description ? (
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b", marginBottom:12, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                    Job Description
+                  </div>
+                  <div style={{
+                    fontSize:13, color:"#374151", lineHeight:1.8,
+                    whiteSpace:"pre-wrap", wordBreak:"break-word",
+                  }}>
+                    {selectedRole.description}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  textAlign:"center", padding:"40px 20px",
+                  color:"#9ca3af", fontSize:13,
+                }}>
+                  <Briefcase size={32} style={{ marginBottom:12, opacity:0.4 }}/>
+                  <p style={{ margin:0 }}>No job description available for this role.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding:"14px 26px", borderTop:"1px solid rgba(221,208,232,0.4)",
+              display:"flex", justifyContent:"flex-end", flexShrink:0,
+              background:"#fafafe",
+            }}>
+              <button
+                onClick={() => setSelectedRole(null)}
+                style={{
+                  padding:"8px 22px", borderRadius:9, fontSize:13, fontWeight:600,
+                  background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)",
+                  color:"#4f46e5", cursor:"pointer", fontFamily:"inherit",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+      `}</style>
     </div>
   );
 }
