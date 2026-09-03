@@ -102,6 +102,115 @@ type EditTarget =
   | { kind: "round-text"; candidateId: number; roundNo: number; field: RoundTextField }
   | { kind: "candidate-role"; candidateId: number };
 
+/* ── Lifted out of InterviewsPage to avoid remount-on-every-render bug ─────── */
+function EditText({
+  candidateId, roundNo, field, value, placeholder, wide = false,
+  editTarget, editValue, setEditValue,
+  onCommit, onKeyDown, onStart,
+}: {
+  candidateId: number; roundNo: number; field: RoundTextField;
+  value: string; placeholder?: string; wide?: boolean;
+  editTarget: EditTarget | null;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  onCommit: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onStart: (candidateId: number, roundNo: number, field: RoundTextField, current: string, e: React.MouseEvent) => void;
+}) {
+  const active =
+    editTarget?.kind === "round-text" &&
+    editTarget.candidateId === candidateId &&
+    editTarget.roundNo     === roundNo &&
+    editTarget.field       === field;
+
+  if (active) {
+    if (field === "date") {
+      const toISO = (v: string) => {
+        try { const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0]; }
+        catch { return ""; }
+      };
+      const fromISO = (v: string) => {
+        if (!v) return "";
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+      };
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+          <input type="date" className="exp-field-input" value={toISO(editValue)} autoFocus
+            onChange={e => setEditValue(fromISO(e.target.value))}
+            onBlur={onCommit} onKeyDown={onKeyDown} onClick={e => e.stopPropagation()} />
+          {editValue && <span style={{ fontSize:10, color:"#6366f1" }}>{editValue}</span>}
+        </div>
+      );
+    }
+    if (field === "time") {
+      const toHHMM = (v: string) => {
+        try { const clean = (v||"").replace(/\s?(AM|PM)/i,"").trim(); const [h,m]=clean.split(":"); return `${h.padStart(2,"0")}:${(m||"00").padStart(2,"0")}`; }
+        catch { return ""; }
+      };
+      const from24 = (v: string) => {
+        if (!v) return "";
+        const [h,m] = v.split(":"); const hour = parseInt(h);
+        return `${hour%12||12}:${m} ${hour>=12?"PM":"AM"}`;
+      };
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+          <input type="time" className="exp-field-input" value={toHHMM(editValue)} autoFocus
+            onChange={e => setEditValue(from24(e.target.value))}
+            onBlur={onCommit} onKeyDown={onKeyDown} onClick={e => e.stopPropagation()} />
+          {editValue && <span style={{ fontSize:10, color:"#6366f1" }}>{editValue}</span>}
+        </div>
+      );
+    }
+    return (
+      <input
+        className={`exp-field-input ${wide ? "exp-field-input-wide" : ""}`}
+        value={editValue} placeholder={placeholder} autoFocus
+        onChange={e => setEditValue(e.target.value)}
+        onBlur={onCommit} onKeyDown={onKeyDown} onClick={e => e.stopPropagation()}
+      />
+    );
+  }
+
+  return (
+    <button className="exp-field-btn"
+      onClick={e => onStart(candidateId, roundNo, field, value, e)}
+      title={`Edit ${field}`}>
+      <span>{value || <span className="placeholder-text">{placeholder}</span>}</span>
+      <Pencil size={9} className="edit-pencil" />
+    </button>
+  );
+}
+
+function EditRole({
+  candidateId, value,
+  editTarget, editValue, setEditValue, onCommit, onKeyDown, onStart,
+}: {
+  candidateId: number; value: string;
+  editTarget: EditTarget | null;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  onCommit: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onStart: (candidateId: number, current: string, e: React.MouseEvent) => void;
+}) {
+  const active = editTarget?.kind === "candidate-role" && editTarget.candidateId === candidateId;
+  if (active) {
+    return (
+      <input className="exp-field-input exp-field-input-wide" value={editValue} autoFocus
+        onChange={e => setEditValue(e.target.value)}
+        onBlur={onCommit} onKeyDown={onKeyDown} onClick={e => e.stopPropagation()} />
+    );
+  }
+  return (
+    <button className="exp-field-btn exp-field-btn-wide"
+      onClick={e => onStart(candidateId, value, e)} title="Edit role">
+      <span>{value || <span className="placeholder-text">Role</span>}</span>
+      <Pencil size={9} className="edit-pencil" />
+    </button>
+  );
+}
+
 /* ════════════════════════════════════════════════════════ */
 export default function InterviewsPage() {
   const { candidates, setCandidates, addRound, removeRound, refreshAll, refreshKey } = useInterviewStore();
@@ -204,142 +313,19 @@ export default function InterviewsPage() {
     if (e.key === "Escape") setEditTarget(null);
   }
 
-  /* ── Inline editable text field ──────────────────────── */
-  function EditText({
-    candidateId, roundNo, field, value, placeholder, wide = false,
-  }: {
-    candidateId: number; roundNo: number; field: RoundTextField;
-    value: string; placeholder?: string; wide?: boolean;
-  }) {
-    const active =
-      editTarget?.kind === "round-text" &&
-      editTarget.candidateId === candidateId &&
-      editTarget.roundNo     === roundNo &&
-      editTarget.field       === field;
-
-    if (active) {
-      /* Date field — native calendar picker */
-      if (field === "date") {
-        const toISO = (v: string) => {
-          try {
-            const d = new Date(v);
-            return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
-          } catch { return ""; }
-        };
-        const fromISO = (v: string) => {
-          if (!v) return "";
-          const d = new Date(v);
-          return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
-        };
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-            <input
-              type="date"
-              className="exp-field-input"
-              value={toISO(editValue)}
-              autoFocus
-              onChange={e => setEditValue(fromISO(e.target.value))}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              onClick={e => e.stopPropagation()}
-            />
-            {editValue && <span style={{ fontSize:10, color:"#6366f1" }}>{editValue}</span>}
-          </div>
-        );
-      }
-
-      /* Time field — native time picker */
-      if (field === "time") {
-        const toHHMM = (v: string) => {
-          try {
-            const clean = (v || "").replace(/\s?(AM|PM)/i, "").trim();
-            const [h, m] = clean.split(":");
-            return `${h.padStart(2,"0")}:${(m||"00").padStart(2,"0")}`;
-          } catch { return ""; }
-        };
-        const from24 = (v: string) => {
-          if (!v) return "";
-          const [h, m] = v.split(":");
-          const hour = parseInt(h);
-          const ampm = hour >= 12 ? "PM" : "AM";
-          const h12  = hour % 12 || 12;
-          return `${h12}:${m} ${ampm}`;
-        };
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-            <input
-              type="time"
-              className="exp-field-input"
-              value={toHHMM(editValue)}
-              autoFocus
-              onChange={e => setEditValue(from24(e.target.value))}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              onClick={e => e.stopPropagation()}
-            />
-            {editValue && <span style={{ fontSize:10, color:"#6366f1" }}>{editValue}</span>}
-          </div>
-        );
-      }
-
-      /* All other fields — plain text input */
-      return (
-        <input
-          className={`exp-field-input ${wide ? "exp-field-input-wide" : ""}`}
-          value={editValue}
-          placeholder={placeholder}
-          autoFocus
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={commitEdit}
-          onKeyDown={handleKeyDown}
-          onClick={e => e.stopPropagation()}
-        />
-      );
-    }
-
-    return (
-      <button
-        className="exp-field-btn"
-        onClick={e => startRoundEdit(candidateId, roundNo, field, value, e)}
-        title={`Edit ${field}`}
-      >
-        <span>{value || <span className="placeholder-text">{placeholder}</span>}</span>
-        <Pencil size={9} className="edit-pencil" />
-      </button>
-    );
-  }
-
-  /* ── Inline editable role ─────────────────────────────── */
-  function EditRole({ candidateId, value }: { candidateId: number; value: string }) {
-    const active =
-      editTarget?.kind === "candidate-role" &&
-      editTarget.candidateId === candidateId;
-
-    if (active) {
-      return (
-        <input
-          className="exp-field-input exp-field-input-wide"
-          value={editValue}
-          autoFocus
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={commitEdit}
-          onKeyDown={handleKeyDown}
-          onClick={e => e.stopPropagation()}
-        />
-      );
-    }
-    return (
-      <button
-        className="exp-field-btn exp-role-btn"
-        onClick={e => startRoleEdit(candidateId, value, e)}
-        title="Edit role"
-      >
-        <span>{value}</span>
-        <Pencil size={9} className="edit-pencil" />
-      </button>
-    );
-  }
-
+  /* ── Props bundle passed to lifted EditText / EditRole ── */
+  const editProps = {
+    editTarget, editValue, setEditValue,
+    onCommit:  commitEdit,
+    onKeyDown: handleKeyDown,
+    onStart:   startRoundEdit,
+  };
+  const editRoleProps = {
+    editTarget, editValue, setEditValue,
+    onCommit:  commitEdit,
+    onKeyDown: handleKeyDown,
+    onStart:   startRoleEdit,
+  };
   /* ── Filters ──────────────────────────────────────────── */
   const roles = useMemo(
     () => ["All", ...Array.from(new Set(candidates.map(c => c.role))).sort()],
@@ -748,6 +734,7 @@ export default function InterviewsPage() {
                                 <EditText
                                   candidateId={c.id} roundNo={r.roundNo}
                                   field="type" value={r.type} placeholder="Round type"
+                                  {...editProps}
                                 />
                               </span>
                               <span
@@ -773,7 +760,7 @@ export default function InterviewsPage() {
                               {/* Role */}
                               <div className="exp-field-row">
                                 <span className="exp-field-label"><Briefcase size={10} /> Role</span>
-                                <EditRole candidateId={c.id} value={c.role} />
+                                <EditRole candidateId={c.id} value={c.role} {...editRoleProps} />
                               </div>
 
                               {/* Date */}
@@ -782,6 +769,7 @@ export default function InterviewsPage() {
                                 <EditText
                                   candidateId={c.id} roundNo={r.roundNo}
                                   field="date" value={r.date} placeholder="e.g. 10 Jun 2026"
+                                  {...editProps}
                                 />
                               </div>
 
@@ -791,6 +779,7 @@ export default function InterviewsPage() {
                                 <EditText
                                   candidateId={c.id} roundNo={r.roundNo}
                                   field="time" value={r.time} placeholder="e.g. 10:00 AM"
+                                  {...editProps}
                                 />
                               </div>
 
@@ -800,6 +789,7 @@ export default function InterviewsPage() {
                                 <EditText
                                   candidateId={c.id} roundNo={r.roundNo}
                                   field="interviewer" value={r.interviewer} placeholder="Full name"
+                                  {...editProps}
                                 />
                               </div>
 
@@ -812,6 +802,7 @@ export default function InterviewsPage() {
                                   value={r.interviewerEmail}
                                   placeholder="interviewer@company.com"
                                   wide={true}
+                                  {...editProps}
                                 />
                               </div>
 
@@ -837,6 +828,7 @@ export default function InterviewsPage() {
                                 <EditText
                                   candidateId={c.id} roundNo={r.roundNo}
                                   field="duration" value={r.duration} placeholder="e.g. 60 min"
+                                  {...editProps}
                                 />
                               </div>
 
