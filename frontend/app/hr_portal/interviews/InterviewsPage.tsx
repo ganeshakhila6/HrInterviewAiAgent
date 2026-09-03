@@ -169,6 +169,18 @@ export default function InterviewsPage() {
           rounds: c.rounds.map(r => r.roundNo === roundNo ? { ...r, [field]: v } : r),
         })
       );
+
+      // Auto-save interviewer name to backend so it persists across page refreshes
+      if (field === "interviewer") {
+        const candidate = candidates.find(c => c.id === candidateId);
+        if (candidate?.backendId) {
+          fetch(`${API_BASE_URL}/interviews/${candidate.backendId}/round/${roundNo}`, {
+            method:  "PATCH",
+            headers: apiHeaders(),
+            body:    JSON.stringify({ interviewer: v }),
+          }).catch(err => console.warn("Failed to save interviewer name:", err));
+        }
+      }
     }
     setEditTarget(null);
   }
