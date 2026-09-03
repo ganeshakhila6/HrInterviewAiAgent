@@ -81,6 +81,34 @@ async def startup():
     await ping_db()
 
 
+# ── Debug: test email endpoint ─────────────────────────────────────────────────
+@app.get("/manager/test-email", summary="Test MS Graph email — sends a test mail to SENDER_EMAIL")
+async def test_email():
+    """
+    Quick smoke-test. Tries to get an Azure token and send a test email
+    to SENDER_EMAIL itself. Check the manager backend terminal for error details.
+    """
+    sender = os.getenv("SENDER_EMAIL", SENDER_EMAIL)
+    env_check = {
+        "AZURE_TENANT_ID":     bool(os.getenv("AZURE_TENANT_ID")),
+        "AZURE_CLIENT_ID":     bool(os.getenv("AZURE_CLIENT_ID")),
+        "AZURE_CLIENT_SECRET": bool(os.getenv("AZURE_CLIENT_SECRET")),
+        "SENDER_EMAIL":        sender or "(not set)",
+    }
+    try:
+        async with httpx.AsyncClient() as http:
+            token = await _get_graph_token(http)
+            await _send_graph_email(
+                http, token, sender,
+                "✅ RecruitAI — Manager Email Test",
+                "<h2>Email test successful!</h2><p>MS Graph is configured correctly.</p>",
+            )
+        return {"success": True, "sent_to": sender, "env": env_check}
+    except Exception as exc:
+        logger.error("test-email failed: %s", exc)
+        return {"success": False, "error": str(exc), "env": env_check}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -794,24 +822,30 @@ SENDER_EMAIL        = os.getenv("SENDER_EMAIL", "")
 
 
 def _graph_token_url() -> str:
-    if not AZURE_TENANT_ID:
-        raise RuntimeError("AZURE_TENANT_ID not set")
-    return f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/token"
+    tenant = os.getenv("AZURE_TENANT_ID", AZURE_TENANT_ID)
+    if not tenant:
+        raise RuntimeError("AZURE_TENANT_ID is not set in .env")
+    return f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 
 
 def _graph_send_url() -> str:
-    if not SENDER_EMAIL:
-        raise RuntimeError("SENDER_EMAIL not set")
-    return f"https://graph.microsoft.com/v1.0/users/{SENDER_EMAIL}/sendMail"
+    sender = os.getenv("SENDER_EMAIL", SENDER_EMAIL)
+    if not sender:
+        raise RuntimeError("SENDER_EMAIL is not set in .env")
+    return f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail"
 
 
 async def _get_graph_token(http: httpx.AsyncClient) -> str:
+    client_id     = os.getenv("AZURE_CLIENT_ID",     AZURE_CLIENT_ID)
+    client_secret = os.getenv("AZURE_CLIENT_SECRET", AZURE_CLIENT_SECRET)
+    if not client_id or not client_secret:
+        raise RuntimeError("AZURE_CLIENT_ID or AZURE_CLIENT_SECRET is not set in .env")
     resp = await http.post(
         _graph_token_url(),
         data={
             "grant_type":    "client_credentials",
-            "client_id":     AZURE_CLIENT_ID,
-            "client_secret": AZURE_CLIENT_SECRET,
+            "client_id":     client_id,
+            "client_secret": client_secret,
             "scope":         "https://graph.microsoft.com/.default",
         },
         timeout=15,
@@ -820,7 +854,7 @@ async def _get_graph_token(http: httpx.AsyncClient) -> str:
         raise RuntimeError(f"Azure token failed [{resp.status_code}]: {resp.text}")
     data = resp.json()
     if "access_token" not in data:
-        raise RuntimeError(f"No access_token: {data}")
+        raise RuntimeError(f"No access_token in Azure response: {data}")
     logger.info("✅ Manager: Azure token obtained")
     return data["access_token"]
 
