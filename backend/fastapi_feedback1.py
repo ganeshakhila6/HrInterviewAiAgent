@@ -1,4 +1,4 @@
-"""
+﻿"""
 HR Recruitment AI Agent - Salesforce + LinkedIn + Interviews Edition
 ────────────────────────────────────────────────────────────────────
 Integrates:
@@ -117,8 +117,11 @@ def MongoResponse(status_code: int = 200, content: Any = None) -> JSONResponse:
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ── OpenAI ────────────────────────────────────────────────────────────────────
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ── OpenAI / OpenRouter ───────────────────────────────────────────────────────
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
+)
 
 # ── Salesforce ────────────────────────────────────────────────────────────────
 SF_CLIENT_ID     = os.getenv("SF_CLIENT_ID")
@@ -181,8 +184,8 @@ if missing_env_vars:
 # ── LinkedIn settings ─────────────────────────────────────────────────────────
 LI_MIN_SCORE         = 50
 LI_RESULTS_PER_QUERY = 10
-LI_JD_MODEL          = "gpt-4.1-mini"
-LI_RANKING_MODEL     = "gpt-4.1-mini"
+LI_JD_MODEL          = "stealth/ox-alpha"
+LI_RANKING_MODEL     = "stealth/ox-alpha"
 LI_VERBOSE           = True
 
 # ── In-memory fallback ────────────────────────────────────────────────────────
@@ -1328,10 +1331,10 @@ Generate a structured JSON report with:
  
 Return ONLY valid JSON. No markdown fences. No explanation."""
  
-    # ── 4. Call GPT-4o ────────────────────────────────────────────────────────
+    # ── 4. Call AI model ─────────────────────────────────────────────────────
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="openai/gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -1341,6 +1344,7 @@ Return ONLY valid JSON. No markdown fences. No explanation."""
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
+            max_tokens=2000,
         )
         report = json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -1435,13 +1439,14 @@ Return ONLY valid JSON. No markdown fences. No explanation."""
 
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="openai/gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an expert HR analyst that outputs structured JSON reports. Return only valid JSON, no markdown."},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
+            max_tokens=2000,
         )
         report = json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -1501,7 +1506,6 @@ def render_feedback_email_html(report: dict) -> str:
     role           = report.get("role", "")
     rec            = report.get("recommendation", "N/A")
     rec_color      = _recommendation_color(rec)
-    overall        = report.get("overall_rating", "N/A")
     confidence     = report.get("hiring_confidence", "N/A")
     exec_summary   = report.get("executive_summary", "")
     strengths      = report.get("top_strengths", [])
@@ -1510,9 +1514,79 @@ def render_feedback_email_html(report: dict) -> str:
     comm_score     = report.get("communication_score", "N/A")
     rounds         = report.get("_rounds_with_feedback", [])
 
+    # ── Compute avg interviewer rating arithmetically from round feedback ──
+    raw_ratings = [
+        r["feedback"].get("rating")
+        for r in rounds
+        if r.get("feedback") and r["feedback"].get("rating") not in (None, 0, "")
+    ]
+    numeric_ratings = []
+    for rv in raw_ratings:
+        try:
+            numeric_ratings.append(float(rv))
+        except (TypeError, ValueError):
+            pass
+    if numeric_ratings:
+        avg_interviewer_rating = round(sum(numeric_ratings) / len(numeric_ratings), 1)
+    else:
+        avg_interviewer_rating = None
+
+    # Use arithmetic avg as authoritative; fall back to AI overall_rating
+    ai_overall = report.get("overall_rating")
+    if avg_interviewer_rating is not None:
+        overall = avg_interviewer_rating
+    elif ai_overall not in (None, 0, "N/A", ""):
+        overall = ai_overall
+    else:
+        overall = "N/A"
+
     strengths_html = "".join(f"<li style='margin-bottom:4px;'>{s}</li>" for s in strengths)
     growth_html    = "".join(f"<li style='margin-bottom:4px;'>{g}</li>" for g in growth_areas)
 
+    # ── Round-wise interviewer rating summary table ─────────────────────────
+    round_summary_rows = ""
+    for r in rounds:
+        f = r.get("feedback", {})
+        r_rating = f.get("rating", "")
+        interviewer = f.get("interviewer_name", r.get("interviewer", "Unknown"))
+        r_date = r.get("date", "TBD")
+        r_type = r.get("type", "Interview")
+        r_no   = r.get("roundNo", "")
+        try:
+            r_float = float(r_rating)
+            rating_display = f"{r_float}/5"
+            badge_color = _rating_color(r_float)
+        except (TypeError, ValueError):
+            rating_display = "N/A"
+            badge_color = "#6b7280"
+        round_summary_rows += f"""
+    <tr>
+      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">Round {r_no}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">{r_type}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">{interviewer}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#374151;">{r_date}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;text-align:center;">
+        <span style="background:{badge_color};color:#fff;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;">{rating_display}</span>
+      </td>
+    </tr>"""
+
+    round_summary_table = f"""
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px;">
+  <thead>
+    <tr style="background:#f3f4f6;">
+      <th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280;font-weight:600;">Round</th>
+      <th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280;font-weight:600;">Type</th>
+      <th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280;font-weight:600;">Interviewer</th>
+      <th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280;font-weight:600;">Date</th>
+      <th style="padding:8px 10px;text-align:center;font-size:12px;color:#6b7280;font-weight:600;">Rating</th>
+    </tr>
+  </thead>
+  <tbody>
+    {round_summary_rows}
+  </tbody>
+</table>"""
+
+    # ── Detailed round blocks ───────────────────────────────────────────────
     rounds_html = ""
     for r in rounds:
         f = r.get("feedback", {})
@@ -1542,7 +1616,7 @@ def render_feedback_email_html(report: dict) -> str:
   <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin:18px 0;">
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <span style="background:{rec_color};color:#fff;padding:4px 14px;border-radius:14px;font-weight:600;font-size:14px;">{rec}</span>
-      <span style="background:#e5e7eb;color:#111827;padding:4px 14px;border-radius:14px;font-size:14px;">Overall Rating: {overall}/5</span>
+      <span style="background:#e5e7eb;color:#111827;padding:4px 14px;border-radius:14px;font-size:14px;">Avg Interviewer Rating: {overall}/5</span>
       <span style="background:#e5e7eb;color:#111827;padding:4px 14px;border-radius:14px;font-size:14px;">Confidence: {confidence}</span>
     </div>
     <p style="font-size:14px;line-height:1.6;margin:10px 0;">{exec_summary}</p>
@@ -1563,6 +1637,8 @@ def render_feedback_email_html(report: dict) -> str:
       Communication Score: <strong>{comm_score}/5</strong>
     </div>
   </div>
+  <h3 style="margin-top:28px;margin-bottom:10px;">Round-wise Interviewer Ratings</h3>
+  {round_summary_table}
   <h3 style="margin-top:28px;margin-bottom:10px;">Round-by-Round Feedback</h3>
   {rounds_html}
   <p style="font-size:12px;color:#9ca3af;margin-top:24px;">
@@ -1661,6 +1737,7 @@ Job Description:
             {"role": "user",   "content": prompt},
         ],
         response_format={"type": "json_object"},
+        max_tokens=1500,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -1717,6 +1794,7 @@ CANDIDATES:
             {"role": "user",   "content": prompt},
         ],
         response_format={"type": "json_object"},
+        max_tokens=1500,
     )
     result = json.loads(response.choices[0].message.content)
     return result.get("ranked_candidates", [])
@@ -2062,6 +2140,7 @@ Return ONLY valid JSON:
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
+            max_tokens=1500,
         )
         result = json.loads(response.choices[0].message.content)
         score  = int(result.get("score", 0))

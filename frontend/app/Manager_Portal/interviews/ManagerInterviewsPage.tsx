@@ -5,9 +5,9 @@ import {
   Calendar, Clock, Video, Monitor, Send, X,
   ChevronRight, ChevronLeft, CheckCircle, Mail,
   Eye, Loader2, Plus, ThumbsUp, ThumbsDown, RefreshCw,
-  AlertCircle,
+  AlertCircle, Star, MessageSquare,
 } from "lucide-react";
-import ManagerSummaryModal from "@/components/ManagerSummaryModal";
+import { isValidEmail } from "@/lib/emailValidation";
 import {
   useInterviewStore,
   type Candidate,
@@ -31,7 +31,212 @@ const SC: Record<RoundStatus, { bg: string; color: string; label: string; dot: s
   pending:   { bg: "rgba(221,208,232,0.35)", color: "#9090B0", label: "Locked",      dot: "#9090B0" },
 };
 
-import { isValidEmail } from "@/lib/emailValidation";
+/* ── AI Feedback Modal (same as HR portal feedback page) ──────────────────── */
+type AIFeedbackReport = {
+  candidate_id: string; candidate_name: string; role: string;
+  rounds_reviewed: number; generated_at: string;
+  overall_rating: number; recommendation: string;
+  executive_summary: string; top_strengths: string[]; growth_areas: string[];
+  aggregated_skills: { skill: string; avg_score: number }[];
+  round_highlights: { round_no: number; type: string; rating: number; key_insight: string; interviewer: string; date: string }[];
+  hiring_confidence: "High" | "Medium" | "Low"; culture_fit_score: number; communication_score: number;
+};
+
+function MiniStars({ score, size = 11 }: { score: number; size?: number }) {
+  if (!score) return <span style={{ color: "#9ca3af" }}>—</span>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      {[1,2,3,4,5].map(s => (
+        <Star key={s} size={size} style={{ color: s <= Math.round(score) ? "#B875A0" : "#E0D0E8", fill: s <= Math.round(score) ? "#B875A0" : "none" }} />
+      ))}
+      <span style={{ fontSize: size, fontWeight: 600, color: "#6b7280", marginLeft: 3 }}>{score}</span>
+    </span>
+  );
+}
+
+function AIFeedbackModal({ candidateId, candidateName, candidateRole, candidateColor, candidateInitials, onClose }: {
+  candidateId: string; candidateName: string; candidateRole: string;
+  candidateColor: string; candidateInitials: string; onClose: () => void;
+}) {
+  const [report,  setReport]  = useState<AIFeedbackReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res  = await fetch(`${API_BASE_URL}/interviews/${candidateId}/feedback-report`, { headers: apiHeaders() });
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 422 || res.status === 404) throw new Error(body?.detail ?? "No completed feedback yet. Feedback must be submitted before a report can be generated.");
+        if (!res.ok) throw new Error(body?.detail ?? `Server error ${res.status}`);
+        if (!cancelled) setReport(body?.content ?? body);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? "Failed to load feedback report.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [candidateId]);
+
+  const recColors: Record<string, { bg: string; color: string; dot: string }> = {
+    "Strong Hire": { bg: "rgba(122,184,216,0.15)", color: "#3A70A0", dot: "#7AB8D8" },
+    "Hire":        { bg: "rgba(168,152,216,0.15)", color: "#5A4878", dot: "#A898D8" },
+    "Hold":        { bg: "rgba(238,208,90,0.2)",   color: "#7A5A10", dot: "#EED860" },
+    "No Hire":     { bg: "rgba(184,117,160,0.15)", color: "#8A4A78", dot: "#B875A0" },
+  };
+  const confColors: Record<string, { bg: string; color: string }> = {
+    High:   { bg: "rgba(122,184,216,0.15)", color: "#3A70A0" },
+    Medium: { bg: "rgba(238,208,90,0.2)",   color: "#7A5A10" },
+    Low:    { bg: "rgba(184,117,160,0.15)", color: "#8A4A78" },
+  };
+
+  return (
+    <div className="mi-overlay" onClick={onClose}>
+      <div className="mi-modal mi-modal--wide" style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="mi-modal-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: candidateColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{candidateInitials}</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#1e1b4b" }}>{candidateName} — Feedback Report</div>
+              <div style={{ fontSize: 12, color: "#9ca3af" }}>{candidateRole} · AI-generated</div>
+            </div>
+          </div>
+          <button className="mi-close" onClick={onClose}><X size={17}/></button>
+        </div>
+
+        <div style={{ padding: "18px 22px" }}>
+          {loading && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "40px 0", color: "#9ca3af" }}>
+              <Loader2 size={28} style={{ color: "#A898D8", animation: "mi-spin 1s linear infinite" }} />
+              <p style={{ margin: 0, fontSize: 13 }}>Generating AI feedback report…</p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div style={{ display: "flex", gap: 10, padding: "14px 16px", background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 10 }}>
+              <AlertCircle size={16} style={{ color: "#dc2626", flexShrink: 0 }} />
+              <p style={{ margin: 0, fontSize: 13, color: "#b02030" }}>{error}</p>
+            </div>
+          )}
+
+          {!loading && report && (
+            <>
+              {/* Overview */}
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16, padding: "14px 16px", background: "#f8f7ff", borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>Overall Rating</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#1e1b4b", lineHeight: 1.2 }}>{report.overall_rating || "—"}</div>
+                  <MiniStars score={report.overall_rating} size={13} />
+                </div>
+                {report.recommendation && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>Recommendation</div>
+                    <span style={{ display: "inline-block", marginTop: 4, padding: "3px 12px", borderRadius: 20, fontSize: 13, fontWeight: 700, background: recColors[report.recommendation]?.bg ?? "#f3f4f6", color: recColors[report.recommendation]?.color ?? "#374151" }}>
+                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: recColors[report.recommendation]?.dot ?? "#9ca3af", marginRight: 6 }}/>
+                      {report.recommendation}
+                    </span>
+                  </div>
+                )}
+                {report.hiring_confidence && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>Hiring Confidence</div>
+                    <span style={{ display: "inline-block", marginTop: 4, padding: "3px 12px", borderRadius: 20, fontSize: 13, fontWeight: 700, background: confColors[report.hiring_confidence]?.bg ?? "#f3f4f6", color: confColors[report.hiring_confidence]?.color ?? "#374151" }}>{report.hiring_confidence}</span>
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>Rounds Reviewed</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#1e1b4b", lineHeight: 1.2 }}>{report.rounds_reviewed}</div>
+                </div>
+              </div>
+
+              {/* Culture Fit + Communication */}
+              <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Culture Fit</div><MiniStars score={report.culture_fit_score} size={13} /></div>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Communication</div><MiniStars score={report.communication_score} size={13} /></div>
+              </div>
+
+              {/* Executive summary */}
+              {report.executive_summary && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#B875A0", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Executive Summary</div>
+                  <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.65 }}>{report.executive_summary}</p>
+                </div>
+              )}
+
+              {/* Skill ratings */}
+              {report.aggregated_skills?.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#B875A0", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>Skill Ratings (avg across rounds)</div>
+                  {report.aggregated_skills.map(sk => {
+                    const pct = (sk.avg_score / 5) * 100;
+                    const c = sk.avg_score >= 4.5 ? "#7AB8D8" : sk.avg_score >= 3.5 ? "#A898D8" : sk.avg_score >= 2.5 ? "#B875A0" : "#E0D0E8";
+                    return (
+                      <div key={sk.skill} style={{ marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: "#374151" }}>{sk.skill}</span>
+                          <span style={{ fontWeight: 700, color: "#6b7280" }}>{sk.avg_score}/5</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 4, background: "#e5e7eb", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 4, transition: "width .4s" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Strengths + Growth areas */}
+              {(report.top_strengths?.length > 0 || report.growth_areas?.length > 0) && (
+                <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                  {report.top_strengths?.length > 0 && (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#B875A0", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Top Strengths</div>
+                      {report.top_strengths.map(s => <div key={s} style={{ fontSize: 13, color: "#374151", padding: "3px 0" }}>✓ {s}</div>)}
+                    </div>
+                  )}
+                  {report.growth_areas?.length > 0 && (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#d97706", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Growth Areas</div>
+                      {report.growth_areas.map(s => <div key={s} style={{ fontSize: 13, color: "#374151", padding: "3px 0" }}>— {s}</div>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Round highlights */}
+              {report.round_highlights?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#B875A0", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>Round Highlights</div>
+                  {report.round_highlights.map(h => (
+                    <div key={h.round_no} style={{ padding: "12px 14px", borderRadius: 9, border: "1px solid rgba(221,208,232,0.4)", background: "#f8f7ff", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: "rgba(52,199,89,0.15)", color: "#1a7a3a" }}>
+                          <CheckCircle size={11} /> Round {h.round_no}{h.type ? ` — ${h.type}` : ""}
+                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {h.interviewer && <span style={{ fontSize: 11, color: "#9ca3af" }}>{h.interviewer}{h.date ? ` · ${h.date}` : ""}</span>}
+                          {h.rating > 0 && <MiniStars score={h.rating} />}
+                        </div>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.55 }}>{h.key_insight}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ fontSize: 11, color: "#c4bdd0", textAlign: "center", marginTop: 14 }}>
+                AI report generated {new Date(report.generated_at).toLocaleString()}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Email body builders ──────────────────────────────── */
 function makeCandidateApprovalEmail(c: ApprovedCandidate) {
@@ -289,7 +494,7 @@ export default function ManagerInterviewsPage() {
   useEffect(() => { fetchApproved(); }, []);
 
   /* ── modals ── */
-  const [summaryCandidate,  setSummaryCandidate]  = useState<Candidate | null>(null);
+  const [summaryCandidate,  setSummaryCandidate]  = useState<{ id: string; name: string; role: string; color: string; initials: string } | null>(null);
   const [feedbackLoadingId, setFeedbackLoadingId] = useState<string | null>(null);
   const [wizard,            setWizard]            = useState<EmailWizard | null>(null);
   const [wizLoading,        setWizLoading]        = useState(false);
@@ -412,17 +617,13 @@ export default function ManagerInterviewsPage() {
   }
 
   async function fetchFeedback(ac: ApprovedCandidate) {
-    setFeedbackLoadingId(ac.candidate_id);
-    const asC: Candidate = { id: 0, backendId: ac.candidate_id, name: ac.candidate_name, initials: ac.initials, color: ac.color || "#6366f1", email: ac.candidate_email, role: ac.role, rounds: ac.rounds || [] };
-    try {
-      const res = await fetch(`${API_BASE_URL}/interviews/${ac.candidate_id}`, { headers: apiHeaders() });
-      if (res.ok) {
-        const updated = normalizeCandidate(await res.json());
-        setCandidates(prev => { const idx = prev.findIndex(c => c.backendId === ac.candidate_id); return idx >= 0 ? prev.map((c, i) => i === idx ? updated : c) : [...prev, updated]; });
-        setSummaryCandidate(updated);
-      } else { setSummaryCandidate(asC); }
-    } catch { setSummaryCandidate(asC); }
-    finally { setFeedbackLoadingId(null); }
+    setSummaryCandidate({
+      id:       ac.candidate_id,
+      name:     ac.candidate_name,
+      role:     ac.role,
+      color:    ac.color || "#6366f1",
+      initials: ac.initials,
+    });
   }
 
   const maxRounds = Math.max(...hrApproved.map(ac => (ac.rounds || []).length), 1);
@@ -863,7 +1064,16 @@ export default function ManagerInterviewsPage() {
         </div>
       )}
 
-      {summaryCandidate && <ManagerSummaryModal candidate={summaryCandidate} onClose={() => setSummaryCandidate(null)}/>}
+      {summaryCandidate && (
+        <AIFeedbackModal
+          candidateId={summaryCandidate.id}
+          candidateName={summaryCandidate.name}
+          candidateRole={summaryCandidate.role}
+          candidateColor={summaryCandidate.color}
+          candidateInitials={summaryCandidate.initials}
+          onClose={() => setSummaryCandidate(null)}
+        />
+      )}
     </div>
   );
 }

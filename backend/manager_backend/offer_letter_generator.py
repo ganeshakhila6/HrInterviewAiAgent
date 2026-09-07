@@ -517,6 +517,57 @@ def _format_doj(doj_raw: Optional[str]) -> str:
     return text
 
 
+def _build_acceptance_overlay(
+    page_size: tuple,
+    hr_signatory_name: str = "",
+    acceptance_date: str = "",
+    page_type: str = "acceptance",
+) -> io.BytesIO:
+    """
+    Builds a transparent overlay for either:
+      page 3 — fills the HR signatory name below the signature blank
+      page 4 — fills candidate Signature name, Name, Date blanks
+    Coordinates come from pdfplumber inspection of the actual template.
+    """
+    width, height = page_size
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(width, height))
+    c.setFont("Helvetica", 10.5)
+    c.setFillColor(black)
+
+    def _fill_blank(x0: float, x1: float, top: float, bottom: float, text: str) -> None:
+        if not text:
+            return
+        y = height - bottom
+        # White out the underscore blank
+        box_width = max(x1 - x0, c.stringWidth(text, "Helvetica", 10.5)) + 4
+        box_height = (bottom - top) + 4
+        c.setFillColor(white)
+        c.rect(x0 - 1, y - 2, box_width, box_height, fill=1, stroke=0)
+        c.setFillColor(black)
+        c.drawString(x0, y + 1.5, text)
+
+    if page_type == "hr_signature":
+        # Page 3: signature blank at x0=55, top=437.6, bottom=448.6
+        # Signatory name prints over the blank line
+        if hr_signatory_name:
+            _fill_blank(55.0, 55.0 + 200, 437.6, 448.6, hr_signatory_name)
+        # HR date printed to the right of the signatory name on same blank line
+        if acceptance_date:
+            date_x = 55.0 + 210   # right side of same row
+            y = height - 448.6
+            c.setFillColor(black)
+            c.setFont("Helvetica", 10.5)
+            c.drawString(date_x, y + 1.5, acceptance_date)
+
+    elif page_type == "acceptance":
+        pass  # candidate acceptance page — left as-is, not filled by HR
+
+    c.save()
+    buf.seek(0)
+    return buf
+
+
 def generate_offer_letter_pdf(
     candidate_name: str,
     designation: str,
@@ -530,6 +581,9 @@ def generate_offer_letter_pdf(
     insurance_yearly: float = DEFAULT_INSURANCE_YEARLY,
     professional_tax_monthly: float = DEFAULT_PROFESSIONAL_TAX_MONTHLY,
     professional_tax_yearly: float = DEFAULT_PROFESSIONAL_TAX_YEARLY,
+    # ── Acceptance & consent fields (page 3 HR signature only) ──────────────
+    hr_signatory_name: str = "",          # name printed below HR signature line (page 3)
+    acceptance_date: str = "",            # date printed alongside HR signature (page 3)
     template_path: Optional[str] = None,
     **_legacy_kwargs,
 ) -> bytes:
@@ -639,10 +693,20 @@ def generate_offer_letter_pdf(
     template_reader = PdfReader(template_path)
     writer = PdfWriter()
 
+    # Pre-build acceptance overlays once (they share the same page size)
+    hr_sig_overlay_buf    = _build_acceptance_overlay(page_size, hr_signatory_name=hr_signatory_name, acceptance_date=acceptance_date, page_type="hr_signature")
+    accept_overlay_buf    = _build_acceptance_overlay(page_size, page_type="acceptance")
+    hr_sig_overlay_page   = PdfReader(hr_sig_overlay_buf).pages[0]
+    accept_overlay_page   = PdfReader(accept_overlay_buf).pages[0]
+
     for i, page in enumerate(template_reader.pages):
         if i == 0:
             page.merge_page(overlay_page)
-            page.merge_page(table_overlay_page)   # fills the template's own salary table
+            page.merge_page(table_overlay_page)
+        elif i == 2:   # page 3 — HR signature
+            page.merge_page(hr_sig_overlay_page)
+        elif i == 3:   # page 4 — candidate acceptance
+            page.merge_page(accept_overlay_page)
         writer.add_page(page)
 
     out_buf = io.BytesIO()

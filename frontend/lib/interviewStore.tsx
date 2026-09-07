@@ -208,6 +208,19 @@ export function normalizeCandidate(raw: any): Candidate {
       }))
     : [];
 
+  // ── Auto-unlock: if all previous rounds passed, the next pending
+  //    round should be "active" so HR can send the email for it.
+  //    This fixes "Locked" showing on rounds that should be schedulable.
+  const unlocked = rounds.map((r, idx) => {
+    if (r.status !== "pending") return r;
+    // Check if every round before this one has passed
+    const allPriorPassed = rounds.slice(0, idx).every(
+      prev => prev.status === "passed"
+    );
+    if (allPriorPassed) return { ...r, status: "active" as RoundStatus };
+    return r;
+  });
+
   const name      = raw.name || "Unknown Candidate";
   const backendId = typeof raw.id === "string"
     ? raw.id
@@ -223,7 +236,7 @@ export function normalizeCandidate(raw: any): Candidate {
     color:    raw.color    || colorOf(name),
     email:    raw.email    || "",
     role:     raw.role     || "Candidate",
-    rounds,
+    rounds:   unlocked,
     yoe:      raw.yoe      || raw.years_experience || undefined,
     aiScore:  raw.score    != null ? Number(raw.score)
             : raw.ai_score != null ? Number(raw.ai_score)

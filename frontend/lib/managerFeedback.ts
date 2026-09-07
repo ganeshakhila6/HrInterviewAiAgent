@@ -23,14 +23,17 @@ export function isRoundCompleted(candidate: Candidate, roundNo: number): boolean
 
 export function getRoundSummaryItems(candidate: Candidate) {
   return candidate.rounds
-    .filter((r) => r.feedback?.summary)
+    .slice()
     .sort((a, b) => a.roundNo - b.roundNo)
     .map((r) => ({
-      roundNo: r.roundNo,
-      type: r.type,
-      summary: r.feedback!.summary!,
+      roundNo:        r.roundNo,
+      type:           r.type,
+      date:           r.date,
+      interviewer:    r.interviewer,
+      status:         r.status,
+      summary:        r.feedback?.summary ?? "",
       recommendation: r.feedback?.recommendation,
-      rating: r.feedback?.rating,
+      rating:         r.feedback?.rating,
     }));
 }
 

@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import "./CandidatesPage.css";
 import { useEffect, useState } from "react";
 import {
-  Search, Filter, Star, X, RefreshCw,
+  Search, Star, X, RefreshCw,
   Briefcase, Award, TrendingUp, CheckCircle,
   Mail, Send,
 } from "lucide-react";
@@ -188,7 +188,7 @@ export default function CandidatesPage() {
   const [emailModal, setEmailModal] = useState<EmailModal>(null);
   const [sent, setSent] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [roleFilter, setRoleFilter] = useState("All Roles");
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -279,10 +279,13 @@ export default function CandidatesPage() {
     }
   }
 
-  const filtered = candidates.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.role.toLowerCase().includes(search.toLowerCase())
-  );
+  const allRoles = ["All Roles", ...Array.from(new Set(candidates.map(c => c.role))).sort()];
+
+  const filtered = candidates.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.role.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === "All Roles" || c.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   return (
     <div className="candidates">
@@ -310,9 +313,13 @@ export default function CandidatesPage() {
           <Search size={14} color="#9090B0" />
           <input placeholder="Search by name or role..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button className={`btn-filter ${filterOpen ? "active" : ""}`} onClick={() => setFilterOpen(p => !p)}>
-          <Filter size={13} /> Filter
-        </button>
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #dde0e8", fontSize: 13, color: "#444", background: "#fff", cursor: "pointer" }}
+        >
+          {allRoles.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
       </div>
 
       {/* ── Table + side panel ── */}
@@ -452,7 +459,6 @@ export default function CandidatesPage() {
             <div className="panel-actions">
               <button className="btn-reject">Reject</button>
               <button className="btn-email" onClick={() => openEmail(selected)}><Mail size={13} /> Email</button>
-              <button className="btn-primary">Schedule Interview</button>
             </div>
           </div>
         )}

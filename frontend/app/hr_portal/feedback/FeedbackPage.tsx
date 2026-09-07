@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import "./FeedbackPage.css";
 import { useState, useMemo, useEffect } from "react";
 import { Star, X, MessageSquare, CheckCircle, Circle, Clock, Loader2, AlertCircle, RefreshCw } from "lucide-react";
@@ -60,22 +60,30 @@ function toFbStatus(s: InterviewRoundStatus): FeedbackStatus {
 
 /* Build a default RoundFeedback from an interview Round */
 function defaultFeedback(r: Round): RoundFeedback {
+  const fb = r.feedback;
+  /* Pull rating & recommendation from stored feedback when available */
+  const rating = typeof fb?.rating === "number" && fb.rating > 0 ? fb.rating : 0;
+  const recommendation: Rec = (fb?.recommendation as Rec) || "\u2014";
+  const skills: SkillRating[] = Array.isArray(fb?.skills) ? (fb!.skills as SkillRating[]) : [];
+  const strengths: string[] = Array.isArray(fb?.strengths) ? (fb!.strengths as string[]) : [];
+  const improvements: string[] = Array.isArray(fb?.improvements) ? (fb!.improvements as string[]) : [];
+  const summary = fb?.summary ||
+    (r.status === "active"
+      ? `Scheduled \u2014 pending feedback.`
+      : r.status === "pending"
+      ? "Pending scheduling."
+      : "");
   return {
     status: toFbStatus(r.status),
     interviewer: r.interviewer,
     interviewerInitials: r.interviewer.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
     date: r.date,
-    rating: 0,
-    recommendation: "—",
-    summary:
-      r.status === "active"
-        ? `Scheduled — pending feedback.`
-        : r.status === "pending"
-        ? "Pending scheduling."
-        : "",
-    skills: [],
-    strengths: [],
-    improvements: [],
+    rating,
+    recommendation,
+    summary,
+    skills,
+    strengths,
+    improvements,
   };
 }
 
@@ -495,12 +503,18 @@ function ApprovalModal({
           <div className="fm-overview">
             <div className="fm-ov-block">
               <div className="fm-ov-label">Overall Rating</div>
-              <div className="fm-ov-big">{overallRating || "—"}</div>
-              <MiniStars score={overallRating} size={14} />
+              <div className="fm-ov-big">{overallRating > 0 ? overallRating : "—"}</div>
+              {overallRating > 0 && <MiniStars score={overallRating} size={14} />}
             </div>
             <div className="fm-ov-block">
               <div className="fm-ov-label">Recommendation</div>
               <RecBadge rec={overallRec} />
+            </div>
+            <div className="fm-ov-block">
+              <div className="fm-ov-label">Rounds Rated</div>
+              <div className="fm-ov-big">
+                {rounds.filter(r => r.rating > 0).length}/{rounds.length}
+              </div>
             </div>
           </div>
           {aggSkills.length > 0 && (
@@ -524,7 +538,6 @@ function ApprovalModal({
           <div className="fm-section">
             <div className="fm-section-title">Round-by-Round Summary</div>
             {rounds.map((r, i) => {
-              if (r.status === "pending") return null;
               const sm = statusMeta[r.status];
               return (
                 <div key={i} className="fm-round-block">
@@ -539,7 +552,7 @@ function ApprovalModal({
                       <span className="fm-round-int">
                         {r.interviewer} · {r.date}
                       </span>
-                      {r.status === "completed" && <MiniStars score={r.rating} />}
+                      {r.rating > 0 && <MiniStars score={r.rating} />}
                       {r.recommendation !== "—" && (
                         <RecBadge rec={r.recommendation} />
                       )}
@@ -547,7 +560,7 @@ function ApprovalModal({
                   </div>
                   {r.status === "completed" && (
                     <>
-                      <p className="fm-round-summary">{r.summary}</p>
+                      {r.summary && <p className="fm-round-summary">{r.summary}</p>}
                       {r.skills.length > 0 && (
                         <div className="fm-skill-chips">
                           {r.skills.map((sk) => (
@@ -579,6 +592,11 @@ function ApprovalModal({
                   {r.status === "scheduled" && (
                     <p className="fm-round-pending">
                       Scheduled for {r.date} — feedback pending.
+                    </p>
+                  )}
+                  {r.status === "pending" && (
+                    <p className="fm-round-pending" style={{ color: "#9ca3af" }}>
+                      Pending scheduling.
                     </p>
                   )}
                 </div>

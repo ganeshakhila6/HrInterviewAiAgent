@@ -112,62 +112,6 @@ const DUMMY_ACCEPTED: AcceptedCandidate[] = [
   },
 ];
 
-const DUMMY_SUBMITTED: SubmittedCandidate[] = [
-  {
-    candidate_id: "demo-1",
-    name: "Laxman Kosana",
-    role: "Salesforce Developer",
-    email: "laxman.k@candidate.app",
-    doj: "2026-07-21",
-    initials: "LK",
-    color: "#8b5cf6",
-    doc_count: 5,
-    submitted_at: "2026-07-08T10:30:00Z",
-    documents: [
-      { id: "d1a", doc_key: "grad_marksheets",  degree_label: null, filename: "LK_Graduation_Marksheets.pdf",      size_bytes: 512000,  uploaded_at: "2026-07-08T10:10:00Z" },
-      { id: "d1b", doc_key: "pc",               degree_label: null, filename: "LK_Provisional_Certificate.pdf",    size_bytes: 320000,  uploaded_at: "2026-07-08T10:12:00Z" },
-      { id: "d1c", doc_key: "degree_certificate",degree_label: "B.Tech", filename: "LK_BTech_Certificate.pdf",    size_bytes: 480000,  uploaded_at: "2026-07-08T10:15:00Z" },
-      { id: "d1d", doc_key: "exp_letters",       degree_label: null, filename: "LK_Experience_Letter.pdf",         size_bytes: 210000,  uploaded_at: "2026-07-08T10:20:00Z" },
-      { id: "d1e", doc_key: "payslip_1",         degree_label: null, filename: "LK_Payslip_June2026.pdf",          size_bytes: 190000,  uploaded_at: "2026-07-08T10:25:00Z" },
-    ],
-  },
-  {
-    candidate_id: "demo-2",
-    name: "Naresh Punagani",
-    role: "Full Stack Developer",
-    email: "naresh.p@candidate.app",
-    doj: "2026-08-01",
-    initials: "NP",
-    color: "#f59e0b",
-    doc_count: 4,
-    submitted_at: "2026-07-07T14:00:00Z",
-    documents: [
-      { id: "d2a", doc_key: "grad_marksheets",   degree_label: null, filename: "NP_Marksheets.pdf",               size_bytes: 620000,  uploaded_at: "2026-07-07T13:40:00Z" },
-      { id: "d2b", doc_key: "cmm",               degree_label: null, filename: "NP_CMM.pdf",                      size_bytes: 280000,  uploaded_at: "2026-07-07T13:45:00Z" },
-      { id: "d2c", doc_key: "degree_certificate",degree_label: "B.E",  filename: "NP_BE_Certificate.pdf",         size_bytes: 450000,  uploaded_at: "2026-07-07T13:50:00Z" },
-      { id: "d2d", doc_key: "relieving_letter",  degree_label: null, filename: "NP_Relieving_Letter.pdf",         size_bytes: 175000,  uploaded_at: "2026-07-07T13:55:00Z" },
-    ],
-  },
-  {
-    candidate_id: "demo-3",
-    name: "Edurupaka Bhavana",
-    role: "AI Engineer",
-    email: "edurupaka.b@candidate.app",
-    doj: "2026-08-15",
-    initials: "EB",
-    color: "#10b981",
-    doc_count: 6,
-    submitted_at: "2026-07-06T09:15:00Z",
-    documents: [
-      { id: "d3a", doc_key: "grad_marksheets",   degree_label: null, filename: "EB_Marksheets.pdf",               size_bytes: 540000,  uploaded_at: "2026-07-06T09:00:00Z" },
-      { id: "d3b", doc_key: "pc",                degree_label: null, filename: "EB_PC.pdf",                       size_bytes: 300000,  uploaded_at: "2026-07-06T09:02:00Z" },
-      { id: "d3c", doc_key: "cmm",               degree_label: null, filename: "EB_CMM.pdf",                      size_bytes: 260000,  uploaded_at: "2026-07-06T09:04:00Z" },
-      { id: "d3d", doc_key: "degree_certificate",degree_label: "M.Tech", filename: "EB_MTech_Certificate.pdf",   size_bytes: 510000,  uploaded_at: "2026-07-06T09:06:00Z" },
-      { id: "d3e", doc_key: "pgrad_certs",       degree_label: null, filename: "EB_PG_Certificate.pdf",           size_bytes: 390000,  uploaded_at: "2026-07-06T09:08:00Z" },
-      { id: "d3f", doc_key: "exp_letters",        degree_label: null, filename: "EB_Experience_Letter.pdf",       size_bytes: 220000,  uploaded_at: "2026-07-06T09:10:00Z" },
-    ],
-  },
-];
 
 // ── Doc label map (matches STATIC_DOCS keys in candidate portal) ──────────────
 const DOC_LABELS: Record<string, { label: string; icon: string }> = {
@@ -388,14 +332,62 @@ export default function OnboardingPage() {
   const fetchAccepted = useCallback(async () => {
     setLoadingAcc(true);
     try {
-      const res = await fetch(`${MGR_API}/hr/onboarding/accepted-candidates`);
-      if (!res.ok) throw new Error(`Manager backend returned ${res.status}`);
-      const data = await res.json();
-      const live = data.candidates || [];
-      // Fall back to dummy data when backend is empty
-      setAccepted(live.length > 0 ? live : DUMMY_ACCEPTED);
+      // ── Replicate the dashboard's 3-call merge pattern ──────────────────
+      // 1. HR backend → authoritative candidate data (name, email, role, rounds)
+      const hrRes  = await fetch(`${HR_API}/interviews/`);
+      const hrData = hrRes.ok ? await hrRes.json() : { candidates: [] };
+      const hrCandidates: any[] = hrData.candidates || [];
+
+      if (hrCandidates.length === 0) { setAccepted(DUMMY_ACCEPTED); return; }
+
+      // 2. Manager backend → offers-status (joining date + candidate_accepted)
+      const ids = hrCandidates.map((c: any) => c.id).join(",");
+      let offerMap: Map<string, any> = new Map();
+      try {
+        const offRes  = await fetch(`${MGR_API}/manager/offers-status?ids=${encodeURIComponent(ids)}`);
+        const offData = offRes.ok ? await offRes.json() : { offers: [] };
+        offerMap = new Map((offData.offers || []).map((o: any) => [o.candidate_id, o]));
+      } catch { /* manager backend unreachable — keep empty map */ }
+
+      // 3. Manager backend → full offers (for band, dept, manager_name)
+      let fullOfferMap: Map<string, any> = new Map();
+      try {
+        const foRes  = await fetch(`${MGR_API}/manager/offers`);
+        const foData = foRes.ok ? await foRes.json() : { offers: [] };
+        fullOfferMap = new Map((foData.offers || []).map((o: any) => [o.candidate_id, o]));
+      } catch { /* ok */ }
+
+      // 4. Filter to only candidate_accepted === true and merge fields
+      const accepted: AcceptedCandidate[] = hrCandidates
+        .filter((c: any) => {
+          const offer = offerMap.get(c.id);
+          return offer?.candidate_accepted === true;
+        })
+        .map((c: any) => {
+          const offer     = offerMap.get(c.id)     || {};
+          const fullOffer = fullOfferMap.get(c.id) || {};
+          // Team lead = round-1 interviewer from HR backend rounds
+          const rounds: any[] = c.rounds || [];
+          const sortedRounds  = [...rounds].sort((a, b) => (a.roundNo || 0) - (b.roundNo || 0));
+          const r1       = sortedRounds.find((r: any) => r.interviewer && r.interviewer !== "TBD");
+          return {
+            candidate_id: c.id,
+            name:         c.name         || "—",
+            email:        c.email        || fullOffer.candidate_email || "—",  // HR backend email is authoritative
+            role:         c.role         || fullOffer.role            || "—",
+            dept:         fullOffer.dept || fullOffer.department      || "—",
+            joining_date: offer.doj      || fullOffer.doj             || "TBD",
+            band:         fullOffer.band                              || "—",
+            manager:      fullOffer.manager_name || fullOffer.manager || "—",
+            team_lead:    r1?.interviewer                             || "—",
+            status:       "Accepted",
+            initials:     c.initials     || (c.name || "?").split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase(),
+            color:        c.color        || "#6366f1",
+          };
+        });
+
+      setAccepted(accepted.length > 0 ? accepted : DUMMY_ACCEPTED);
     } catch {
-      // API unreachable — show dummy data so the page isn't blank
       setAccepted(DUMMY_ACCEPTED);
     } finally { setLoadingAcc(false); }
   }, []);
@@ -406,12 +398,10 @@ export default function OnboardingPage() {
       const res = await fetch(`${HR_API}/candidates/all-submitted`);
       if (!res.ok) throw new Error(`HR backend returned ${res.status}`);
       const data = await res.json();
-      const live = data.candidates || [];
-      // Fall back to dummy data when backend is empty
-      setSubmitted(live.length > 0 ? live : DUMMY_SUBMITTED);
-    } catch {
-      // API unreachable — show dummy data so the page isn't blank
-      setSubmitted(DUMMY_SUBMITTED);
+      setSubmitted(data.candidates || []);
+    } catch (e: any) {
+      console.error("Failed to load submitted documents:", e);
+      setSubmitted([]);
     } finally { setLoadingSub(false); }
   }, []);
 

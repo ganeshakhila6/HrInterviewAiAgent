@@ -617,12 +617,7 @@ export default function InterviewsPage() {
                   <div className="td td-cand">
                     <div className="cand-av" style={{ background: c.color }}>{c.initials}</div>
                     <div>
-                      <button
-                        className="cand-name cand-name-btn"
-                        onClick={e => { e.stopPropagation(); setSelectedCand(c); }}
-                      >
-                        {c.name}
-                      </button>
+                      <span className="cand-name">{c.name}</span>
                       <div className="cand-email">{c.email}</div>
                     </div>
                   </div>
@@ -703,7 +698,7 @@ export default function InterviewsPage() {
                     <div className="expanded-rounds">
                       {c.rounds.map(r => {
                         const sm        = SC[r.status];
-                        const canDelete = r.status === "pending" && c.rounds.length > 1;
+                        const canDelete = (r.status === "pending" || r.status === "active") && c.rounds.length > 1;
                         return (
                           <div
                             key={r.roundNo}
@@ -1157,90 +1152,8 @@ export default function InterviewsPage() {
       )}
 
       {/* ════════════════════════════════════════════════════ */}
-      {/* ── Candidate Detail Modal ── */}
+      {/* ── Candidate Detail Modal — removed (name click no longer shows popup) ── */}
       {/* ════════════════════════════════════════════════════ */}
-      {selectedCand && (() => {
-        const c = candidates.find(x => x.id === selectedCand.id) ?? selectedCand;
-        return (
-          <div className="modal-overlay" onClick={() => setSelectedCand(null)}>
-            <div className="cand-detail-modal" onClick={e => e.stopPropagation()}>
-
-              {/* Header */}
-              <div className="cand-detail-header">
-                <div className="cand-detail-header-left">
-                  <div className="cand-av cand-av-lg" style={{ background: c.color }}>
-                    {c.initials}
-                  </div>
-                  <div>
-                    <div className="cand-detail-name">{c.name}</div>
-                    <div className="cand-detail-role">{c.role}</div>
-                    <div className="cand-detail-email">{c.email}</div>
-                  </div>
-                </div>
-                <button className="close-btn" onClick={() => setSelectedCand(null)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Rounds */}
-              <div className="cand-detail-body">
-                <div className="cand-detail-section-title">
-                  <span>Interview Rounds</span>
-                  <span className="cand-detail-badge">
-                    {c.rounds.length} rounds · {c.rounds.filter(r => r.status === "passed").length} passed
-                  </span>
-                </div>
-                <div className="cand-detail-rounds">
-                  {c.rounds.map(r => {
-                    const sm = SC[r.status];
-                    return (
-                      <div key={r.roundNo} className={`cand-detail-round cdr-${r.status}`}>
-                        <div className="cdr-head">
-                          <span className="cdr-num">R{r.roundNo}</span>
-                          <span className="cdr-type">{r.type}</span>
-                          <span
-                            className="cdr-status"
-                            style={{ background: sm.bg, color: sm.color }}
-                          >
-                            {sm.label}
-                          </span>
-                        </div>
-                        <div className="cdr-meta">
-                          <span><Calendar size={11} /> {r.date}</span>
-                          <span><Clock    size={11} /> {r.time}</span>
-                          <span><User     size={11} /> {r.interviewer}</span>
-                          {r.interviewerEmail && (
-                            <span><Mail size={11} /> {r.interviewerEmail}</span>
-                          )}
-                          <span className={`exp-mode ${r.mode === "Video Call" ? "mode-video" : "mode-person"}`}>
-                            {r.mode === "Video Call" ? <Video size={10} /> : <Monitor size={10} />}
-                            {r.mode}
-                          </span>
-                          <span>⏱ {r.duration}</span>
-                        </div>
-                        {r.status === "active" && !r.mailSent && (
-                          <button
-                            className="btn-send-mail cdr-action"
-                            onClick={() => { setSelectedCand(null); openWizard(c, r); }}
-                          >
-                            <Bell size={12} /> Send Mail
-                          </button>
-                        )}
-                        {r.status === "active" && r.mailSent && (
-                          <span className="mail-sent-tag">
-                            <CheckCircle size={12} /> Mail Sent
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        );
-      })()}
 
     </div>
   );

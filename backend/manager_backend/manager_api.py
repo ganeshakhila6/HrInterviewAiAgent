@@ -1,7 +1,7 @@
-"""
+﻿"""
 Manager Backend API
-═══════════════════════════════════════════════════════════════════════════════
-Handles the HR → Manager approval flow.
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+Handles the HR â†’ Manager approval flow.
 
 When HR clicks "Review & Approve" on the Feedback page, the frontend calls:
   POST /manager/hr-approve
@@ -13,22 +13,22 @@ Lookup strategy for candidate data (tried in order):
   4. Frontend-supplied fields in the request body        (offline / fallback)
 
 MongoDB collections used (all in db: hr_recruitment):
-  - interview_details   (shared with HR backend — read only here)
-  - candidates          (shared with HR backend — read only here)
+  - interview_details   (shared with HR backend â€” read only here)
+  - candidates          (shared with HR backend â€” read only here)
   - manager_approvals   (owned by manager backend)
   - manager_offers       (owned by manager backend)
 
 Endpoints:
-  POST  /manager/hr-approve                              → HR submits approval
-  GET   /manager/approved-candidates                     → Manager portal list
-  PATCH /manager/approved-candidates/{id}/decision       → Manager approve/reject
-  GET   /manager/approved-candidates/{id}                → Single candidate detail
-  GET   /manager/health                                  → Health check
-  POST  /manager/offers                                  → Save approved candidate as offer
-  GET   /manager/offers                                  → List offers
-  PATCH /manager/offers/{id}                              → Update band / bonus / doj / status
-  POST  /manager/send-offer                               → Generate PDF offer letter + email it
-  POST  /manager/send-round-email                         → Send round-scheduling email + Teams link
+  POST  /manager/hr-approve                              â†’ HR submits approval
+  GET   /manager/approved-candidates                     â†’ Manager portal list
+  PATCH /manager/approved-candidates/{id}/decision       â†’ Manager approve/reject
+  GET   /manager/approved-candidates/{id}                â†’ Single candidate detail
+  GET   /manager/health                                  â†’ Health check
+  POST  /manager/offers                                  â†’ Save approved candidate as offer
+  GET   /manager/offers                                  â†’ List offers
+  PATCH /manager/offers/{id}                              â†’ Update band / bonus / doj / status
+  POST  /manager/send-offer                               â†’ Generate PDF offer letter + email it
+  POST  /manager/send-round-email                         â†’ Send round-scheduling email + Teams link
 """
 
 import os
@@ -54,16 +54,16 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("manager_api")
 
-# ── Collections ────────────────────────────────────────────────────────────────
+# â”€â”€ Collections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interview_col  = db["interview_details"]   # HR backend writes here
-candidates_col = db["candidates"]          # raw candidate profiles — also used for offer-letter enrichment
+candidates_col = db["candidates"]          # raw candidate profiles â€” also used for offer-letter enrichment
 approvals_col  = db["manager_approvals"]   # owned by manager backend
 offers_col     = db["manager_offers"]      # owned by manager backend
 
-# ── App ────────────────────────────────────────────────────────────────────────
+# â”€â”€ App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app = FastAPI(
     title="Manager Backend API",
-    description="HR → Manager approval pipeline for the RecruitAI portal",
+    description="HR â†’ Manager approval pipeline for the RecruitAI portal",
     version="1.2.0",
 )
 
@@ -81,8 +81,8 @@ async def startup():
     await ping_db()
 
 
-# ── Debug: test email endpoint ─────────────────────────────────────────────────
-@app.get("/manager/test-email", summary="Test MS Graph email — sends a test mail to SENDER_EMAIL")
+# â”€â”€ Debug: test email endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.get("/manager/test-email", summary="Test MS Graph email â€” sends a test mail to SENDER_EMAIL")
 async def test_email():
     """
     Quick smoke-test. Tries to get an Azure token and send a test email
@@ -100,7 +100,7 @@ async def test_email():
             token = await _get_graph_token(http)
             await _send_graph_email(
                 http, token, sender,
-                "✅ RecruitAI — Manager Email Test",
+                "âœ… RecruitAI â€” Manager Email Test",
                 "<h2>Email test successful!</h2><p>MS Graph is configured correctly.</p>",
             )
         return {"success": True, "sent_to": sender, "env": env_check}
@@ -109,9 +109,9 @@ async def test_email():
         return {"success": False, "error": str(exc), "env": env_check}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def _safe_id(doc: dict) -> dict:
     """Convert ObjectId / datetime fields to JSON-safe strings recursively."""
@@ -142,9 +142,9 @@ async def _resolve_candidate(candidate_id: str) -> Optional[dict]:
     """
     Try multiple strategies to find the candidate record.
 
-    Strategy 1 — interview_details.candidate_id == candidate_id  (string match)
-    Strategy 2 — interview_details._id == ObjectId(candidate_id) (doc _id match)
-    Strategy 3 — candidates._id == ObjectId(candidate_id)        (raw profile)
+    Strategy 1 â€” interview_details.candidate_id == candidate_id  (string match)
+    Strategy 2 â€” interview_details._id == ObjectId(candidate_id) (doc _id match)
+    Strategy 3 â€” candidates._id == ObjectId(candidate_id)        (raw profile)
 
     Returns a normalised dict with at minimum:
         name, email, initials, color, role, rounds
@@ -152,13 +152,13 @@ async def _resolve_candidate(candidate_id: str) -> Optional[dict]:
     """
     cid = candidate_id.strip()
 
-    # ── Strategy 1: interview_details keyed by candidate_id field ─────────────
+    # â”€â”€ Strategy 1: interview_details keyed by candidate_id field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     doc = await interview_col.find_one({"candidate_id": cid})
     if doc:
         logger.info("Resolved via interview_details.candidate_id=%s", cid)
         return doc
 
-    # ── Strategy 2: interview_details keyed by its own _id ────────────────────
+    # â”€â”€ Strategy 2: interview_details keyed by its own _id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     oid = _try_object_id(cid)
     if oid:
         doc = await interview_col.find_one({"_id": oid})
@@ -166,7 +166,7 @@ async def _resolve_candidate(candidate_id: str) -> Optional[dict]:
             logger.info("Resolved via interview_details._id=%s", cid)
             return doc
 
-    # ── Strategy 3: raw candidates collection ─────────────────────────────────
+    # â”€â”€ Strategy 3: raw candidates collection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if oid:
         doc = await candidates_col.find_one({"_id": oid})
         if doc:
@@ -190,7 +190,7 @@ async def _resolve_candidate(candidate_id: str) -> Optional[dict]:
 async def _get_candidate_profile(candidate_id: str) -> dict:
     """
     Best-effort fetch of the full `candidates` collection document for a
-    candidate — used to enrich the offer letter with extra fields (skills,
+    candidate â€” used to enrich the offer letter with extra fields (skills,
     yoe, position_name, ai_score, etc.) beyond what's stored on the offer
     record itself. Returns {} if nothing is found (never raises).
     """
@@ -209,34 +209,34 @@ async def _get_candidate_profile(candidate_id: str) -> dict:
     return {}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # REQUEST / RESPONSE MODELS
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class HRApproveRequest(BaseModel):
     """
     Sent by the HR portal when clicking "Review & Approve".
 
-    candidate_id    — backendId from the frontend (= candidate _id string
+    candidate_id    â€” backendId from the frontend (= candidate _id string
                       stored as candidate_id in interview_details)
-    hr_note         — Optional HR note attached to the approval
-    overall_rating  — Computed rating shown on the feedback page
-    recommendation  — HR recommendation label  (e.g. "Strong Hire")
+    hr_note         â€” Optional HR note attached to the approval
+    overall_rating  â€” Computed rating shown on the feedback page
+    recommendation  â€” HR recommendation label  (e.g. "Strong Hire")
 
-    # Fallback fields — used when the candidate cannot be found in MongoDB
+    # Fallback fields â€” used when the candidate cannot be found in MongoDB
     # (e.g. seed data that was never persisted to the DB)
-    candidate_name  — Candidate's display name
-    candidate_email — Candidate's email address
-    initials        — Avatar initials
-    color           — Avatar background colour
-    role            — Job role / title
-    rounds          — Interview rounds array
+    candidate_name  â€” Candidate's display name
+    candidate_email â€” Candidate's email address
+    initials        â€” Avatar initials
+    color           â€” Avatar background colour
+    role            â€” Job role / title
+    rounds          â€” Interview rounds array
     """
     candidate_id:     str
     hr_note:          Optional[str]   = ""
     overall_rating:   Optional[float] = None
     recommendation:   Optional[str]   = ""
-    manager_email:    Optional[str]   = None   # manager's email — used to send notification
+    manager_email:    Optional[str]   = None   # manager's email â€” used to send notification
 
     # Fallback / override fields supplied by the frontend
     candidate_name:   Optional[str]   = None
@@ -252,9 +252,9 @@ class ManagerDecisionRequest(BaseModel):
     note:     Optional[str] = ""
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 1 — HR submits approval
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 1 â€” HR submits approval
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.post("/manager/hr-approve", summary="HR approves candidate for manager review")
 async def hr_approve(body: HRApproveRequest):
@@ -272,11 +272,11 @@ async def hr_approve(body: HRApproveRequest):
     candidate_id = body.candidate_id.strip()
     now = datetime.now(timezone.utc)
 
-    # ── Try to find the candidate in MongoDB ──────────────────────────────────
+    # â”€â”€ Try to find the candidate in MongoDB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     iv_doc = await _resolve_candidate(candidate_id)
 
     if iv_doc:
-        # Found in DB — use DB values, allow body overrides for missing fields
+        # Found in DB â€” use DB values, allow body overrides for missing fields
         name     = iv_doc.get("name",     "") or body.candidate_name or ""
         email    = iv_doc.get("email",    "") or body.candidate_email or ""
         initials = iv_doc.get("initials", "") or body.initials or ""
@@ -284,9 +284,9 @@ async def hr_approve(body: HRApproveRequest):
         role     = iv_doc.get("role",     "") or body.role or ""
         rounds   = iv_doc.get("rounds",   []) or body.rounds or []
     else:
-        # ── Strategy 4: fallback — use whatever the frontend sent ─────────────
+        # â”€â”€ Strategy 4: fallback â€” use whatever the frontend sent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         logger.warning(
-            "Candidate %s not found in MongoDB — using frontend-supplied data",
+            "Candidate %s not found in MongoDB â€” using frontend-supplied data",
             candidate_id,
         )
 
@@ -329,7 +329,7 @@ async def hr_approve(body: HRApproveRequest):
         "updated_at":         now,
     }
 
-    # Upsert — one record per candidate
+    # Upsert â€” one record per candidate
     await approvals_col.update_one(
         {"candidate_id": candidate_id},
         {"$set": approval_doc},
@@ -349,7 +349,7 @@ async def hr_approve(body: HRApproveRequest):
             }},
         )
 
-    # ── Send email notification to manager ────────────────────────────────────
+    # â”€â”€ Send email notification to manager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     manager_email = body.manager_email or ""
     # Also try to extract from hr_note as fallback (legacy: "... Manager email: foo@bar.com")
     if not manager_email and body.hr_note:
@@ -362,19 +362,26 @@ async def hr_approve(body: HRApproveRequest):
     email_error_msg = ""
     if manager_email:
         try:
-            # ── Compute avg interviewer rating across all completed rounds ────
-            rated_rounds = [
-                r for r in (rounds or [])
-                if r.get("rating") and str(r.get("status", "")).lower() in ("passed", "completed", "failed", "active")
-            ]
+            # â”€â”€ Compute avg interviewer rating across all completed rounds â”€â”€â”€â”€
+            # ── Compute avg interviewer rating — rating is stored inside round["feedback"]["rating"]
+            rated_rounds = []
+            for r in (rounds or []):
+                fb = r.get("feedback") or {}
+                raw_rating = r.get("rating") or fb.get("rating")
+                status_raw = str(r.get("status", "")).lower()
+                if raw_rating and status_raw in ("passed", "completed", "failed", "active"):
+                    try:
+                        rated_rounds.append((r, float(raw_rating)))
+                    except (TypeError, ValueError):
+                        pass
             if rated_rounds:
-                avg_rating = sum(float(r["rating"]) for r in rated_rounds) / len(rated_rounds)
+                avg_rating = sum(v for _, v in rated_rounds) / len(rated_rounds)
                 avg_rating_str = f"{round(avg_rating, 1)} / 5"
             else:
                 avg_rating_str = "—"
 
-            # ── AI resume score (sent from frontend as overall_rating when no feedback exists,
-            #    or stored as score/ai_score on the candidate doc via iv_doc) ──
+            # â”€â”€ AI resume score (sent from frontend as overall_rating when no feedback exists,
+            #    or stored as score/ai_score on the candidate doc via iv_doc) â”€â”€
             ai_score = None
             if iv_doc:
                 ai_score = iv_doc.get("score") or iv_doc.get("ai_score")
@@ -382,31 +389,31 @@ async def hr_approve(body: HRApproveRequest):
                 # Only use body.overall_rating as ai_score if it looks like a 0-100 value
                 if body.overall_rating > 5:
                     ai_score = body.overall_rating
-            ai_score_str = f"{int(ai_score)} / 100" if ai_score else "—"
+            ai_score_str = f"{int(ai_score)} / 100" if ai_score else "â€”"
 
-            # ── Build round rows ──────────────────────────────────────────────
+            # â”€â”€ Build round rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             rounds_rows = ""
             for i, r in enumerate(rounds or [], start=1):
                 status_raw   = str(r.get("status", "pending"))
                 status_label = {
-                    "passed":    "✅ Passed",
-                    "completed": "✅ Completed",
-                    "failed":    "❌ Failed",
-                    "active":    "🔵 Active",
-                    "scheduled": "📅 Scheduled",
-                    "pending":   "⏳ Pending",
+                    "passed":    "âœ… Passed",
+                    "completed": "âœ… Completed",
+                    "failed":    "âŒ Failed",
+                    "active":    "ðŸ”µ Active",
+                    "scheduled": "ðŸ“… Scheduled",
+                    "pending":   "â³ Pending",
                 }.get(status_raw.lower(), status_raw.title())
 
+                fb_i       = (r.get("feedback") or {})
                 interviewer = (
-                    r.get("interviewer")
+                    fb_i.get("interviewer_name")
+                    or r.get("interviewer")
                     or r.get("interviewerName")
-                    or r.get("interviewer_name")
-                    or r.get("interviewerEmail", "")
-                    or "TBD"
                 )
                 date_val     = r.get("date") or r.get("interview_date") or "TBD"
-                round_rating = r.get("rating", "")
-                rating_str   = f"{round_rating} / 5" if round_rating else "—"
+                fb_data      = r.get("feedback") or {}
+                round_rating = r.get("rating") or fb_data.get("rating") or ""
+                rating_str   = f"{float(round_rating):.1f} / 5" if round_rating else "—"
 
                 rounds_rows += f"""
 <tr>
@@ -420,7 +427,7 @@ async def hr_approve(body: HRApproveRequest):
             body_html = f"""
 <div style="font-family:sans-serif;max-width:640px;color:#1e1b4b;">
   <div style="background:linear-gradient(135deg,#6366f1,#818cf8);padding:24px 28px;border-radius:12px 12px 0 0;">
-    <h2 style="color:#fff;margin:0;font-size:20px;">👤 Candidate Forwarded for Your Review</h2>
+    <h2 style="color:#fff;margin:0;font-size:20px;">ðŸ‘¤ Candidate Forwarded for Your Review</h2>
     <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px;">
       HR has approved a candidate and requires your managerial decision.
     </p>
@@ -430,7 +437,7 @@ async def hr_approve(body: HRApproveRequest):
 
     <!-- Candidate Summary -->
     <div style="background:#f8f7ff;border-left:4px solid #6366f1;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">📋 Candidate Summary</p>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">ðŸ“‹ Candidate Summary</p>
       <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
         <tr>
           <td style="padding:6px 0;width:180px;color:#6b7280;">Name</td>
@@ -453,7 +460,7 @@ async def hr_approve(body: HRApproveRequest):
 
     <!-- Interview Details -->
     {"" if not rounds_rows else f'''
-    <p style="font-size:13px;font-weight:700;color:#374151;margin:0 0 10px;">🗓️ Interview Details</p>
+    <p style="font-size:13px;font-weight:700;color:#374151;margin:0 0 10px;">ðŸ—“ï¸ Interview Details</p>
     <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;border:1px solid #e9edf2;border-radius:8px;overflow:hidden;">
       <thead>
         <tr style="background:#f8faff;">
@@ -474,7 +481,7 @@ async def hr_approve(body: HRApproveRequest):
     <a href="http://localhost:3000/manager-portal/interviews"
        style="display:inline-block;padding:11px 24px;background:#6366f1;color:#fff;
               text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">
-      Open Manager Portal →
+      Open Manager Portal â†’
     </a>
 
     <p style="font-size:11px;color:#9ca3af;margin-top:20px;">
@@ -489,16 +496,16 @@ async def hr_approve(body: HRApproveRequest):
                     http_client,
                     token,
                     manager_email,
-                    f"[Action Required] Candidate Review: {name} — {role}",
+                    f"[Action Required] Candidate Review: {name} â€” {role}",
                     body_html,
                 )
             email_sent = True
-            logger.info("✅ Manager notification email sent to %s for candidate '%s'", manager_email, name)
+            logger.info("âœ… Manager notification email sent to %s for candidate '%s'", manager_email, name)
         except Exception as exc:
             email_error_msg = str(exc)
-            logger.warning("⚠️  Manager email failed (non-fatal): %s", exc)
+            logger.warning("âš ï¸  Manager email failed (non-fatal): %s", exc)
     else:
-        logger.info("No manager_email provided — skipping notification email for '%s'", name)
+        logger.info("No manager_email provided â€” skipping notification email for '%s'", name)
 
     logger.info("HR approved candidate '%s' (%s) for manager review", name, candidate_id)
     logger.debug("rounds sample: %s", (rounds or [{}])[:1])
@@ -515,9 +522,9 @@ async def hr_approve(body: HRApproveRequest):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 2 — Manager fetches approved candidates
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 2 â€” Manager fetches approved candidates
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.get("/manager/approved-candidates", summary="Get all candidates pending manager review")
 async def get_approved_candidates(status: Optional[str] = None):
@@ -536,12 +543,12 @@ async def get_approved_candidates(status: Optional[str] = None):
     async for doc in approvals_col.find(query).sort("hr_approved_at", -1):
         safe = _safe_id(doc)
 
-        # ── Enrich rounds from live interview_details ──────────────────────────
+        # â”€â”€ Enrich rounds from live interview_details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         candidate_id = safe.get("candidate_id", "")
         if candidate_id:
             iv_doc = await interview_col.find_one({"candidate_id": candidate_id})
             if iv_doc and iv_doc.get("rounds"):
-                # Use live rounds from HR backend — these reflect markResult updates
+                # Use live rounds from HR backend â€” these reflect markResult updates
                 safe["rounds"] = [
                     {k: (str(v) if hasattr(v, "hex") else v.isoformat() if hasattr(v, "isoformat") else v)
                      for k, v in r.items()}
@@ -553,9 +560,9 @@ async def get_approved_candidates(status: Optional[str] = None):
     return {"candidates": results, "total": len(results)}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 3 — Single candidate detail
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 3 â€” Single candidate detail
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.get("/manager/approved-candidates/{candidate_id}", summary="Get single approved candidate")
 async def get_approved_candidate(candidate_id: str):
@@ -568,9 +575,9 @@ async def get_approved_candidate(candidate_id: str):
     return _safe_id(doc)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 4 — Manager approve / reject
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 4 â€” Manager approve / reject
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.patch(
     "/manager/approved-candidates/{candidate_id}/decision",
@@ -619,9 +626,9 @@ async def manager_decision(candidate_id: str, body: ManagerDecisionRequest):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 5 — Lightweight status poll (used by HR Feedback page)
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 5 â€” Lightweight status poll (used by HR Feedback page)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.get("/manager/candidate-status/{candidate_id}", summary="Get manager decision status for a candidate")
 async def candidate_status(candidate_id: str):
@@ -666,9 +673,9 @@ async def candidates_status_bulk(ids: str):
     return {"statuses": results}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 6 — Health check
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 6 â€” Health check
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.get("/manager/health", summary="Health check")
 async def health():
@@ -679,18 +686,18 @@ async def health():
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 7 — Demo reset: delete all approvals from MongoDB
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 7 â€” Demo reset: delete all approvals from MongoDB
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@app.delete("/manager/offers/reset", summary="Demo reset — clears all manager_offers from MongoDB")
+@app.delete("/manager/offers/reset", summary="Demo reset â€” clears all manager_offers from MongoDB")
 async def reset_offers():
     result = await offers_col.delete_many({})
     logger.info("Demo reset: deleted %d offer records", result.deleted_count)
     return {"success": True, "deleted": result.deleted_count}
 
 
-@app.delete("/manager/reset", summary="Demo reset — clears all manager_approvals from MongoDB")
+@app.delete("/manager/reset", summary="Demo reset â€” clears all manager_approvals from MongoDB")
 async def reset_approvals():
     """
     Called when manager or HR clicks Refresh for demo purposes.
@@ -706,9 +713,9 @@ async def reset_approvals():
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 8 — Offers: save approved candidate as offer
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 8 â€” Offers: save approved candidate as offer
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.post("/manager/offers", summary="Save approved candidate as offer for HR Offers page")
 async def create_offer(candidate_id: str):
@@ -733,7 +740,7 @@ async def create_offer(candidate_id: str):
         "doj":             "TBD",
         "candidate_accepted": None,   # None = pending decision, True = accepted, False = declined
         "status":          "Draft",
-        "sent_date":       "—",
+        "sent_date":       "â€”",
         "approved_at":     now,
         "updated_at":      now,
     }
@@ -763,14 +770,14 @@ async def update_offer(
     status: Optional[str] = None,
     doj: Optional[str] = None,
     joining_date: Optional[str] = None,
-    accepted: Optional[str] = None,   # "true" | "false" — whether the candidate accepted the offer
+    accepted: Optional[str] = None,   # "true" | "false" â€” whether the candidate accepted the offer
 ):
     """
     Accepts BOTH `doj` and `joining_date` as the query param name for the
-    joining-date value — see the docstring history for why. `accepted`
+    joining-date value â€” see the docstring history for why. `accepted`
     is new: pass "true" or "false" (string, since query params are always
     strings) to record whether the candidate has accepted the offer. This
-    is what gates candidate-portal login — see /candidates/login and
+    is what gates candidate-portal login â€” see /candidates/login and
     /candidates/portal-eligible in candidate_documents_backend.py, which
     now require candidate_accepted == True (not just offer_letter_sent)
     before letting someone log in.
@@ -797,7 +804,7 @@ async def offers_status_bulk(ids: str):
     Lightweight companion to /manager/candidates-status, used by the
     Candidate Pipeline page to populate the Joining Date and Candidate
     Acceptance columns without pulling every field from /manager/offers.
-    Returns candidate_id, doj, candidate_accepted, status, band per match —
+    Returns candidate_id, doj, candidate_accepted, status, band per match â€”
     candidates with no offer record yet simply aren't in the response.
     """
     id_list = [i.strip() for i in ids.split(",") if i.strip()]
@@ -814,53 +821,66 @@ async def offers_status_bulk(ids: str):
     return {"offers": results}
 
 
-@app.get("/hr/onboarding/accepted-candidates", summary="Candidates who accepted their offer — for HR Onboarding page")
+@app.get("/hr/onboarding/accepted-candidates", summary="Candidates who accepted their offer â€” for HR Onboarding page")
 async def get_accepted_candidates():
     """
     Every offer with candidate_accepted == True, shaped for the HR
-    Onboarding page's "Accepted Offer Letters" section (the
-    AcceptedCandidate type in OnboardingPage.tsx).
-
-    NOTE: `manager` and `team_lead` aren't tracked anywhere in the current
-    schema (manager_offers / candidates / interview_details both lack a
-    field for "who is this person's future manager/team lead"). Both are
-    returned as "" until that data exists somewhere — e.g. by adding a
-    `manager`/`team_lead` param to the existing PATCH /manager/offers/{id}
-    endpoint, the same way `accepted` was added, and having HR fill it in
-    from the Offers page. Flagging this rather than inventing placeholder
-    names, since fake data here would be actively misleading on an
-    onboarding tracker.
+    Onboarding page's "Accepted Offer Letters" section.
+    Email is enriched from interview_details (authoritative source) so
+    "no-email@unknown.com" placeholders are replaced with the real email.
+    team_lead is taken from the first round's interviewer in interview_details.
     """
     results = []
     async for offer in offers_col.find({"candidate_accepted": True}).sort("updated_at", -1):
         candidate_id = offer.get("candidate_id", "")
-        name = offer.get("candidate_name", "")
+        name         = offer.get("candidate_name", "")
 
-        # Dept isn't stored on the offer itself — enrich from the fuller
-        # candidates profile where available.
-        profile = await _get_candidate_profile(candidate_id)
-        dept = profile.get("position_name") or profile.get("dept") or ""
+        # Enrich from interview_details â€” authoritative source for email,
+        # team lead (round-1 interviewer), and dept/role fallbacks.
+        interview = await interview_col.find_one({"candidate_id": candidate_id})
+        team_lead = ""
+        email     = offer.get("candidate_email", "")
+        dept      = offer.get("dept") or offer.get("department") or ""
+
+        if interview:
+            # Use email from HR backend â€” overrides any placeholder stored in offer
+            hr_email = interview.get("email", "")
+            if hr_email and hr_email not in ("", "no-email@unknown.com"):
+                email = hr_email
+
+            # Dept from candidates collection if not on offer
+            if not dept:
+                dept = interview.get("dept") or interview.get("position_name") or ""
+
+            # Team lead = round-1 interviewer name
+            rounds = sorted(interview.get("rounds", []), key=lambda r: r.get("roundNo", 99))
+            r1 = next((r for r in rounds if r.get("interviewer")), None)
+            if r1:
+                team_lead = r1.get("interviewer", "")
+
+        initials = "".join(p[0] for p in (name or "?").split()[:2]).upper() or offer.get("initials", "")
 
         results.append({
             "candidate_id": candidate_id,
             "name":         name,
-            "email":        offer.get("candidate_email", ""),
-            "role":         offer.get("role", ""),
-            "dept":         dept,
+            "email":        email,
+            "role":         offer.get("role") or "â€”",
+            "dept":         dept or "â€”",
             "joining_date": offer.get("doj") or "TBD",
-            "band":         offer.get("band", "TBD"),
-            "manager":      offer.get("manager", ""),      # not yet tracked — see docstring
-            "team_lead":    offer.get("team_lead", ""),    # not yet tracked — see docstring
+            "band":         offer.get("band") or "â€”",
+            "manager":      offer.get("manager_name") or offer.get("manager") or "â€”",
+            "team_lead":    team_lead or "â€”",
             "status":       "Accepted",
-            "initials":     offer.get("initials", ""),
-            "color":        offer.get("color", "#6366f1"),
+            "initials":     initials,
+            "color":        offer.get("color") or "#6366f1",
         })
-    return {"candidates": results}
+
+    return {"candidates": results, "total": len(results)}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # MS GRAPH HELPERS  (same credentials as HR backend via shared .env)
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 AZURE_TENANT_ID     = os.getenv("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID     = os.getenv("AZURE_CLIENT_ID", "")
@@ -902,7 +922,7 @@ async def _get_graph_token(http: httpx.AsyncClient) -> str:
     data = resp.json()
     if "access_token" not in data:
         raise RuntimeError(f"No access_token in Azure response: {data}")
-    logger.info("✅ Manager: Azure token obtained")
+    logger.info("âœ… Manager: Azure token obtained")
     return data["access_token"]
 
 
@@ -939,8 +959,8 @@ async def _send_graph_email(
         timeout=30,
     )
     if resp.status_code not in (200, 202):
-        raise RuntimeError(f"sendMail failed [{resp.status_code}] → {to_email}: {resp.text}")
-    logger.info("✅ Manager: email sent to %s%s", to_email, " (with attachment)" if attachments else "")
+        raise RuntimeError(f"sendMail failed [{resp.status_code}] â†’ {to_email}: {resp.text}")
+    logger.info("âœ… Manager: email sent to %s%s", to_email, " (with attachment)" if attachments else "")
 
 
 async def _create_teams_meeting(
@@ -988,7 +1008,7 @@ async def _create_teams_meeting(
         resp = await http.post(
             f"https://graph.microsoft.com/v1.0/users/{SENDER_EMAIL}/events",
             json={
-                "subject": f"Managerial Round {round_no} — {role} | {candidate_name}",
+                "subject": f"Managerial Round {round_no} â€” {role} | {candidate_name}",
                 "body": {
                     "contentType": "HTML",
                     "content": f"<p>Managerial round interview for <b>{candidate_name}</b> ({role}).</p>",
@@ -1014,9 +1034,9 @@ async def _create_teams_meeting(
         return ""
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 9 — Send round email + create Teams meeting
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 9 â€” Send round email + create Teams meeting
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class SendRoundEmailRequest(BaseModel):
     candidateEmail:     str
@@ -1038,7 +1058,7 @@ class SendRoundEmailRequest(BaseModel):
 @app.post("/manager/send-round-email", summary="Send email to candidate + HR and create Teams meeting")
 async def send_round_email(body: SendRoundEmailRequest):
     """
-    Called from Manager Interviews → Add Another Round → Send Email.
+    Called from Manager Interviews â†’ Add Another Round â†’ Send Email.
     1. Creates a Teams meeting via MS Graph
     2. Appends the Teams link to both email bodies
     3. Sends emails to candidate and HR via MS Graph
@@ -1048,13 +1068,13 @@ async def send_round_email(body: SendRoundEmailRequest):
     duration_min = int(dur_match.group()) if dur_match else 60
 
     async with httpx.AsyncClient() as http:
-        # ── Get Azure token ──────────────────────────────────────────────────
+        # â”€â”€ Get Azure token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         try:
             token = await _get_graph_token(http)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Azure token failed: {e}")
 
-        # ── Create Teams meeting ─────────────────────────────────────────────
+        # â”€â”€ Create Teams meeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         teams_link = ""
         try:
             teams_link = await _create_teams_meeting(
@@ -1071,7 +1091,7 @@ async def send_round_email(body: SendRoundEmailRequest):
         except Exception as e:
             logger.warning("Teams meeting failed (non-fatal): %s", e)
 
-        # ── Build meeting block — ALWAYS inject prominently ─────────────────
+        # â”€â”€ Build meeting block â€” ALWAYS inject prominently â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # Strip the frontend placeholder line first
         c_body_clean = body.candidateBody.replace(
             "[The Microsoft Teams meeting link will be included below]", ""
@@ -1082,28 +1102,28 @@ async def send_round_email(body: SendRoundEmailRequest):
             meeting_block = f"""
 <br><br>
 <div style="background:#f0f4ff;border-left:4px solid #6366f1;padding:16px 18px;border-radius:8px;font-family:sans-serif;">
-  <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#4f46e5;">📅 Interview Scheduled</p>
+  <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#4f46e5;">ðŸ“… Interview Scheduled</p>
   <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
     <tr><td style="padding:3px 0;width:110px;color:#6b7280;">Position</td><td style="padding:3px 0;"><b>{body.role}</b></td></tr>
-    <tr><td style="padding:3px 0;color:#6b7280;">Round</td><td style="padding:3px 0;">R{body.roundNo} — {body.mode}</td></tr>
+    <tr><td style="padding:3px 0;color:#6b7280;">Round</td><td style="padding:3px 0;">R{body.roundNo} â€” {body.mode}</td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Date</td><td style="padding:3px 0;">{body.date}</td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Time</td><td style="padding:3px 0;">{body.time}</td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Duration</td><td style="padding:3px 0;">{duration_min} min</td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Mode</td><td style="padding:3px 0;">{body.mode}</td></tr>
   </table>
   <br>
-  <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#374151;">🔗 Microsoft Teams Meeting Link:</p>
+  <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#374151;">ðŸ”— Microsoft Teams Meeting Link:</p>
   <a href="{teams_link}" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">Join Meeting on Teams</a>
   <br><br>
   <p style="margin:0;font-size:11px;color:#9ca3af;">Or copy this link: <a href="{teams_link}" style="color:#6366f1;">{teams_link}</a></p>
 </div>
 """
         else:
-            # Teams creation failed — still show interview details clearly
+            # Teams creation failed â€” still show interview details clearly
             meeting_block = f"""
 <br><br>
 <div style="background:#f9fafb;border-left:4px solid #e5e7eb;padding:16px 18px;border-radius:8px;font-family:sans-serif;">
-  <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#374151;">📅 Interview Details</p>
+  <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#374151;">ðŸ“… Interview Details</p>
   <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
     <tr><td style="padding:3px 0;width:110px;color:#6b7280;">Position</td><td style="padding:3px 0;"><b>{body.role}</b></td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Round</td><td style="padding:3px 0;">R{body.roundNo}</td></tr>
@@ -1112,26 +1132,26 @@ async def send_round_email(body: SendRoundEmailRequest):
     <tr><td style="padding:3px 0;color:#6b7280;">Duration</td><td style="padding:3px 0;">{duration_min} min</td></tr>
     <tr><td style="padding:3px 0;color:#6b7280;">Mode</td><td style="padding:3px 0;">{body.mode}</td></tr>
   </table>
-  <p style="margin:10px 0 0;font-size:12px;color:#f59e0b;">⚠️ Meeting link will be shared separately before the interview.</p>
+  <p style="margin:10px 0 0;font-size:12px;color:#f59e0b;">âš ï¸ Meeting link will be shared separately before the interview.</p>
 </div>
 """
 
         candidate_body_html = c_body_clean.replace("\n", "<br>") + meeting_block
         hr_body_html        = h_body_clean.replace("\n", "<br>") + meeting_block
 
-        # ── Send to candidate ────────────────────────────────────────────────
+        # â”€â”€ Send to candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         try:
             await _send_graph_email(http, token, body.candidateEmail, body.candidateSubject, candidate_body_html)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Candidate email failed: {e}")
 
-        # ── Send to HR ───────────────────────────────────────────────────────
+        # â”€â”€ Send to HR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         try:
             await _send_graph_email(http, token, body.hrEmail, body.hrSubject, hr_body_html)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"HR email failed: {e}")
 
-    # ── Persist teamsLink on approval record ─────────────────────────────────
+    # â”€â”€ Persist teamsLink on approval record â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if body.candidateId and teams_link:
         await approvals_col.update_one(
             {"candidate_id": body.candidateId},
@@ -1141,7 +1161,7 @@ async def send_round_email(body: SendRoundEmailRequest):
             }},
         )
 
-    logger.info("✅ Round email sent: candidate=%s hr=%s teamsLink=%s",
+    logger.info("âœ… Round email sent: candidate=%s hr=%s teamsLink=%s",
                 body.candidateEmail, body.hrEmail, teams_link or "none")
     return {
         "success":    True,
@@ -1151,9 +1171,9 @@ async def send_round_email(body: SendRoundEmailRequest):
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENDPOINT 10 — Send offer letter (PDF attachment) to candidate via MS Graph
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ENDPOINT 10 â€” Send offer letter (PDF attachment) to candidate via MS Graph
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @app.post("/manager/send-offer", summary="Send offer letter (with PDF attachment) to candidate via MS Graph")
 async def send_offer(candidate_id: str):
@@ -1183,7 +1203,7 @@ async def send_offer(candidate_id: str):
     if not email:
         raise HTTPException(status_code=400, detail="Candidate email is missing from offer record")
 
-    # ── Enrich from the fuller candidates collection profile if useful ────────
+    # â”€â”€ Enrich from the fuller candidates collection profile if useful â”€â”€â”€â”€â”€â”€â”€â”€
     candidate_profile = await _get_candidate_profile(candidate_id)
     if not role:
         role = candidate_profile.get("role") or candidate_profile.get("position_name", "")
@@ -1192,7 +1212,7 @@ async def send_offer(candidate_id: str):
     ref_no = f"SPK/OFR/{now.year}/{candidate_id[-6:].upper()}"
     date_str = now.strftime("%d-%b-%Y")
 
-    # ── Generate the filled offer letter PDF ──────────────────────────────────
+    # â”€â”€ Generate the filled offer letter PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try:
         pdf_bytes = generate_offer_letter_pdf(
             candidate_name=name,
@@ -1215,11 +1235,11 @@ async def send_offer(candidate_id: str):
         "contentBytes": pdf_b64,
     }
 
-    subject = f"Offer Letter — {role} at SprintPark Solutions"
+    subject = f"Offer Letter â€” {role} at SprintPark Solutions"
     body_html = f"""
 <div style="font-family:sans-serif;max-width:600px;color:#1e1b4b;">
   <div style="background:linear-gradient(135deg,#6366f1,#818cf8);padding:24px 28px;border-radius:12px 12px 0 0;">
-    <h2 style="color:#fff;margin:0;font-size:20px;">🎉 Congratulations, {name.split()[0]}!</h2>
+    <h2 style="color:#fff;margin:0;font-size:20px;">ðŸŽ‰ Congratulations, {name.split()[0]}!</h2>
     <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px;">You have received an offer from SprintPark Solutions</p>
   </div>
   <div style="background:#fff;border:1px solid rgba(221,208,232,0.4);border-top:none;border-radius:0 0 12px 12px;padding:24px 28px;">
@@ -1230,7 +1250,7 @@ async def send_offer(candidate_id: str):
     </p>
 
     <div style="background:#f8f7ff;border-left:4px solid #6366f1;border-radius:8px;padding:16px 20px;margin:20px 0;">
-      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">📋 Offer Details</p>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;">ðŸ“‹ Offer Details</p>
       <table style="border-collapse:collapse;font-size:13px;color:#374151;width:100%;">
         <tr><td style="padding:5px 0;width:150px;color:#6b7280;">Position</td><td style="padding:5px 0;"><b>{role}</b></td></tr>
         <tr><td style="padding:5px 0;color:#6b7280;">Date of Joining</td><td style="padding:5px 0;"><b>{doj}</b></td></tr>
@@ -1249,7 +1269,7 @@ async def send_offer(candidate_id: str):
     <p style="font-size:13px;color:#374151;">
       We look forward to welcoming you to the team!<br><br>
       Warm regards,<br>
-      <b>HR Team — SprintPark Solutions</b>
+      <b>HR Team â€” SprintPark Solutions</b>
     </p>
   </div>
   <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:12px;">
@@ -1287,53 +1307,72 @@ async def send_offer(candidate_id: str):
     }
 
 
-# ── Run ────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# OFFER LETTER PREVIEW  — returns the filled PDF so the frontend can render it
+# ─────────────────────────────────────────────────────────────────────────────
+
+from fastapi.responses import Response as FastAPIResponse
+
+@app.get("/manager/preview-offer", summary="Return the filled offer-letter PDF for browser preview")
+async def preview_offer(
+    candidate_id: str,
+    band:                    Optional[str] = None,
+    doj:                     Optional[str] = None,
+    bonus:                   Optional[str] = None,
+    hr_signatory_name:       Optional[str] = None,
+    acceptance_date:         Optional[str] = None,
+):
+    """
+    Generates the SprintPark offer letter PDF using the same
+    generate_offer_letter_pdf() call as /manager/send-offer, but instead of
+    emailing it, streams the raw bytes back so the frontend can embed them
+    in an <iframe> for live preview.
+
+    Optional query params (band / doj / bonus) let the HR operator preview
+    with draft edits before committing them — they override whatever is
+    stored in manager_offers.
+    """
+    offer = await offers_col.find_one({"candidate_id": candidate_id})
+    if not offer:
+        raise HTTPException(status_code=404, detail=f"No offer found for {candidate_id!r}")
+
+    name  = offer.get("candidate_name", "Candidate")
+    role  = offer.get("role", "")
+    # Allow caller to override with draft edits
+    _band  = (band  or offer.get("band",  "TBD")).strip()
+    _doj   = (doj   or offer.get("doj",   "")).strip()
+
+    now      = datetime.now(timezone.utc)
+    ref_no   = f"SPK/OFR/{now.year}/{candidate_id[-6:].upper()}"
+    date_str = now.strftime("%d-%b-%Y")
+
+    try:
+        pdf_bytes = generate_offer_letter_pdf(
+            candidate_name=name,
+            designation=role,
+            doj_str=_doj,
+            ref_no=ref_no,
+            date_str=date_str,
+            band=_band,
+            hr_signatory_name=(hr_signatory_name or "").strip(),
+            acceptance_date=(acceptance_date or "").strip(),
+        )
+    except Exception as e:
+        logger.exception("Offer letter PDF preview generation failed")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+
+    return FastAPIResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="Offer_Letter_{name.replace(" ", "_")}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# â”€â”€ Run â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("MANAGER_API_PORT", "8001"))
     uvicorn.run("manager_api:app", host="0.0.0.0", port=port, reload=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# HR ONBOARDING PAGE — accepted candidates
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.get("/hr/onboarding/accepted-candidates", summary="HR Onboarding — candidates who accepted their offer")
-async def hr_onboarding_accepted_candidates():
-    """
-    Returns every candidate whose candidate_accepted flag is True in
-    manager_offers, enriched with interview_details (team lead = round-1 interviewer).
-    Used by HR Portal Onboarding page Section 1.
-    """
-    results = []
-    async for offer in offers_col.find({"candidate_accepted": True}).sort("updated_at", -1):
-        candidate_id = offer.get("candidate_id", "")
-
-        # Enrich with interview_details for team lead
-        interview  = await interviews_col.find_one({"candidate_id": candidate_id})
-        team_lead  = ""
-        if interview:
-            rounds = sorted(interview.get("rounds", []), key=lambda r: r.get("roundNo", 99))
-            r1 = next((r for r in rounds if r.get("interviewer")), None)
-            if r1:
-                team_lead = r1.get("interviewer", "")
-
-        name = offer.get("candidate_name", "")
-        initials = "".join(p[0] for p in (name or "?").split()[:2]).upper()
-
-        results.append({
-            "candidate_id": candidate_id,
-            "name":         name,
-            "email":        offer.get("candidate_email", ""),
-            "role":         offer.get("role", "—"),
-            "dept":         offer.get("dept", offer.get("department", "Engineering")),
-            "joining_date": offer.get("doj", "TBD"),
-            "band":         offer.get("band", "—"),
-            "manager":      offer.get("manager_name", "—"),
-            "team_lead":    team_lead or "—",
-            "status":       offer.get("status", "Accepted"),
-            "initials":     initials,
-            "color":        offer.get("color", "#6366f1"),
-        })
-
-    return {"candidates": results, "total": len(results)}

@@ -1,6 +1,6 @@
 ﻿"use client";
 import "./OffersPage.css";
-import { FileText, Send, Pencil, Check, X, RefreshCw, AlertCircle, CalendarDays } from "lucide-react";
+import { FileText, Send, Pencil, Check, X, RefreshCw, AlertCircle, CalendarDays, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInterviewStore, API_BASE_URL, apiHeaders } from "@/lib/interviewStore";
 
@@ -12,9 +12,11 @@ type Offer = {
   name:         string;
   role:         string;
   band:         string;
-  joiningDate:  string;   // ISO "YYYY-MM-DD" when set, "" / "TBD" when not
+  joiningDate:  string;
   status:       string;
   sentDate:     string;
+  bonus?:       string;
+  dept?:        string;
 };
 
 const MANAGER_API = process.env.NEXT_PUBLIC_MANAGER_API_BASE_URL || "http://localhost:8001";
@@ -26,9 +28,6 @@ const statusStyle: Record<string, { bg: string; text: string }> = {
   Declined: { bg: "rgba(255,200,216,0.5)",  text: "#c0506a" },
 };
 
-/* Formats an ISO "YYYY-MM-DD" date as "22-Jul-2026" for display; falls back
-   to whatever raw value was stored if it isn't a clean ISO date (e.g. "TBD"
-   or a free-typed value that didn't parse). */
 function formatJoiningDate(value: string): string {
   if (!value) return "TBD";
   const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -38,6 +37,168 @@ function formatJoiningDate(value: string): string {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/* ── Editable Offer Letter Modal ────────────────────────────────────────────── */
+function OfferLetterModal({ offer, onClose, onSend }: {
+  offer: Offer;
+  onClose: () => void;
+  onSend: (updated: Offer) => void;
+}) {
+  const [band,        setBand]        = useState(offer.band !== "TBD" ? offer.band : "");
+  const [joiningDate, setJoiningDate] = useState(offer.joiningDate || "");
+  const [hrName,      setHrName]      = useState("Yerni G.");
+  const [hrDate,      setHrDate]      = useState("");
+  const [pdfKey,      setPdfKey]      = useState(0);
+
+  const previewUrl = `${MANAGER_API}/manager/preview-offer`
+    + `?candidate_id=${encodeURIComponent(offer.candidate_id || "")}`
+    + `&band=${encodeURIComponent(band)}`
+    + `&doj=${encodeURIComponent(joiningDate)}`
+    + `&hr_signatory_name=${encodeURIComponent(hrName)}`
+    + `&acceptance_date=${encodeURIComponent(hrDate)}`
+    + `&_k=${pdfKey}`;
+
+  function refreshPreview() { setPdfKey(k => k + 1); }
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,10,30,0.6)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+      onClick={onClose}>
+      <div style={{ width:"100%", maxWidth:1020, height:"90vh", display:"flex", background:"#fff", borderRadius:16, overflow:"hidden", boxShadow:"0 24px 64px rgba(0,0,0,0.3)" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* ── Left: editable fields ── */}
+        <div style={{ width:280, flexShrink:0, borderRight:"1px solid rgba(221,208,232,0.4)", overflowY:"auto", padding:"22px 18px", background:"#faf9ff", display:"flex", flexDirection:"column", gap:0 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b", marginBottom:18, display:"flex", alignItems:"center", gap:6 }}>
+            <Pencil size={14} color="#6366f1" /> Edit Offer Details
+          </div>
+
+          {/* Read-only info */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:".05em", marginBottom:3 }}>Candidate</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"#1e1b4b" }}>{offer.name}</div>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:".05em", marginBottom:3 }}>Designation</div>
+            <div style={{ fontSize:13, color:"#374151" }}>{offer.role || "—"}</div>
+          </div>
+
+          <hr style={{ border:"none", borderTop:"1px solid rgba(221,208,232,0.4)", margin:"6px 0 16px" }}/>
+
+          {/* Editable fields */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:".05em", display:"block", marginBottom:5 }}>Compensation Band (LPA)</label>
+            <input
+              value={band}
+              onChange={e => setBand(e.target.value)}
+              placeholder="e.g. 20 or 20.5"
+              style={{ width:"100%", padding:"7px 10px", border:"1.5px solid rgba(99,102,241,0.35)", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}
+            />
+            <div style={{ fontSize:10, color:"#9ca3af", marginTop:3 }}>Enter as a number in LPA — e.g. 20 for 20 LPA</div>
+          </div>
+
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:".05em", display:"block", marginBottom:5 }}>Date of Joining</label>
+            <input
+              type="date"
+              value={/^\d{4}-\d{2}-\d{2}$/.test(joiningDate) ? joiningDate : ""}
+              onChange={e => setJoiningDate(e.target.value)}
+              style={{ width:"100%", padding:"7px 10px", border:"1.5px solid rgba(99,102,241,0.35)", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}
+            />
+          </div>
+
+          <button
+            onClick={refreshPreview}
+            style={{ width:"100%", padding:"8px 0", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:8, fontSize:12, fontWeight:700, color:"#4f46e5", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:5, marginTop:4 }}>
+            <RefreshCw size={12} /> Refresh Preview
+          </button>
+
+          <hr style={{ border:"none", borderTop:"1px solid rgba(221,208,232,0.4)", margin:"18px 0 14px" }}/>
+
+          {/* HR Signature section */}
+          <div style={{ fontSize:12, fontWeight:700, color:"#6366f1", marginBottom:12 }}>HR Signature (Page 3)</div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:".05em", display:"block", marginBottom:5 }}>HR Signatory Name</label>
+            <input
+              value={hrName}
+              onChange={e => setHrName(e.target.value)}
+              placeholder="e.g. Yerni G."
+              style={{ width:"100%", padding:"7px 10px", border:"1.5px solid rgba(99,102,241,0.35)", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}
+            />
+            <div style={{ fontSize:10, color:"#9ca3af", marginTop:3 }}>Printed below the HR signature line</div>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:".05em", display:"block", marginBottom:5 }}>HR Signature Date</label>
+            <input
+              type="date"
+              value={hrDate}
+              onChange={e => setHrDate(e.target.value)}
+              style={{ width:"100%", padding:"7px 10px", border:"1.5px solid rgba(99,102,241,0.35)", borderRadius:7, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}
+            />
+            <div style={{ fontSize:10, color:"#9ca3af", marginTop:3 }}>Date printed next to HR signature</div>
+          </div>
+
+          <hr style={{ border:"none", borderTop:"1px solid rgba(221,208,232,0.4)", margin:"6px 0 14px" }}/>
+
+          {/* Salary note */}
+          <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.05)", borderRadius:8, border:"1px solid rgba(99,102,241,0.15)", fontSize:11, color:"#6b7280", lineHeight:1.6 }}>
+            <strong style={{ color:"#4f46e5" }}>Salary table</strong> is automatically calculated from the compensation band and filled in the SprintPark offer letter template.
+          </div>
+        </div>
+
+        {/* ── Right: PDF preview iframe ── */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+          {/* Toolbar */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 20px", borderBottom:"1px solid rgba(221,208,232,0.4)", background:"#fff", flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <Eye size={15} color="#6366f1" />
+              <span style={{ fontSize:14, fontWeight:700, color:"#1e1b4b" }}>SprintPark Offer Letter</span>
+              <span style={{ fontSize:11, padding:"2px 8px", borderRadius:12, background:"rgba(99,102,241,0.1)", color:"#4f46e5", fontWeight:600 }}>Template Preview</span>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              {offer.candidate_id && (
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ padding:"7px 14px", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:8, fontSize:12, fontWeight:600, color:"#4f46e5", textDecoration:"none", display:"inline-flex", alignItems:"center", gap:5 }}>
+                  <FileText size={12} /> Open in Tab
+                </a>
+              )}
+              <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#9ca3af", display:"flex" }}><X size={18}/></button>
+            </div>
+          </div>
+
+          {/* PDF iframe */}
+          <div style={{ flex:1, overflow:"hidden", background:"#f3f4f6" }}>
+            {offer.candidate_id ? (
+              <iframe
+                key={pdfKey}
+                src={`${previewUrl}#toolbar=1`}
+                style={{ width:"100%", height:"100%", border:"none" }}
+                title="Offer Letter Preview"
+              />
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#9ca3af", fontSize:13 }}>
+                No candidate ID — cannot generate preview.
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:10, padding:"13px 22px", borderTop:"1px solid rgba(221,208,232,0.4)", background:"#fff", flexShrink:0 }}>
+            <button onClick={onClose} style={{ padding:"8px 18px", border:"1px solid rgba(221,208,232,0.6)", borderRadius:8, fontSize:13, fontWeight:600, color:"#6b7280", background:"#fff", cursor:"pointer", fontFamily:"inherit" }}>Close</button>
+            {offer.status === "Draft" && (
+              <button
+                onClick={() => { onSend({ ...offer, band: band || offer.band, joiningDate: joiningDate || offer.joiningDate }); onClose(); }}
+                style={{ padding:"8px 20px", background:"linear-gradient(135deg,#6366f1,#818cf8)", border:"none", borderRadius:8, fontSize:13, fontWeight:700, color:"#fff", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 12px rgba(99,102,241,0.3)" }}>
+                <Send size={13}/> Send Offer Letter
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function OffersPage() {
   const { refreshKey, refreshAll } = useInterviewStore();
 
@@ -70,6 +231,8 @@ export default function OffersPage() {
         joiningDate: o.joining_date    || o.date_of_joining || o.doj || "",
         status:      o.status          || "Draft",
         sentDate:    o.sent_date       || "—",
+        bonus:       o.bonus           || "",
+        dept:        o.dept            || o.department || "",
       }));
       setOffers(live);
     } catch {
@@ -92,8 +255,9 @@ export default function OffersPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  const [sending,  setSending]  = useState<string | null>(null);  /* candidate_id being sent */
+  const [sending,  setSending]  = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [viewOffer, setViewOffer] = useState<Offer | null>(null);
 
   /* Build the offer letter email body sent to the candidate */
   function buildOfferEmail(o: Offer) {
@@ -358,7 +522,7 @@ export default function OffersPage() {
                     <td className="date-cell">{o.sentDate}</td>
                     <td>
                       <div className="row-actions">
-                        <button className="btn-outline-sm"><FileText size={12} /> View</button>
+                        <button className="btn-outline-sm" onClick={() => setViewOffer(o)}><Eye size={12} /> View</button>
                         {o.status === "Draft" && (
                           <button
                             className="btn-primary-sm"
@@ -383,6 +547,17 @@ export default function OffersPage() {
       )}
 
       <style>{`@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }`}</style>
+
+      {/* ── Offer Letter Modal ── */}
+      {viewOffer && (
+        <OfferLetterModal
+          offer={viewOffer}
+          onClose={() => setViewOffer(null)}
+          onSend={(updatedOffer) => {
+            handleSend(updatedOffer);
+          }}
+        />
+      )}
     </div>
   );
 }
