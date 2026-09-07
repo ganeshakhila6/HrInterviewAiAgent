@@ -6,7 +6,7 @@ import React from "react";
 // Render the existing client feedback form component. Importing dynamically
 // avoids server-side rendering issues since the component is a client component.
 const InterviewerFeedbackForm = dynamic(
-  () => import("../(app)/interviews/Interviewerfeedbackform"),
+  () => import("../hr_portal/interviews/Interviewerfeedbackform"),
   { ssr: false }
 );
 
