@@ -230,16 +230,9 @@ export default function InterviewsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   /* Reset all local state when global refresh fires */
-  React.useEffect(() => {
-    setSearch(""); setRoleFilter("All"); setStageFilter("All");
-    setExpandedId(null); setSelectedCand(null); setWizard(null);
-    setResultTarget(null); setEditTarget(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
-
   async function handleRefresh() {
     setIsRefreshing(true);
-    refreshAll();   /* resets candidates + signals all dependent pages */
+    refreshAll();   /* re-fetches candidates from HR backend */
     await new Promise(r => setTimeout(r, 600));
     setIsRefreshing(false);
   }
@@ -532,7 +525,7 @@ export default function InterviewsPage() {
             style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.22)", borderRadius:9, fontSize:12, fontWeight:600, color:"#4f46e5", cursor:"pointer", fontFamily:"inherit", opacity: isRefreshing ? 0.6 : 1 }}
           >
             <RefreshCw size={12} style={{ animation: isRefreshing ? "spin 1s linear infinite" : "none" }}/>
-            {isRefreshing ? "Resetting…" : "Refresh"}
+            {isRefreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>

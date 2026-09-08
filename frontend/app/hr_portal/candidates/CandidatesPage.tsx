@@ -249,8 +249,8 @@ export default function CandidatesPage() {
   function openEmail(c: Candidate) {
     setEmailModal({
       candidate: c,
-      subject: `Interview Schedule — ${c.role} at RecruitAI`,
-      body: `Hi ${c.name.split(" ")[0]},\n\nWe are pleased to inform you that you have been shortlisted for the ${c.role} position at RecruitAI. We would like to schedule an interview with you.\n\nInterview Details:\n- Round: Technical Interview\n- Duration: 60 minutes\n- Mode: Video Call (Google Meet / Zoom)\n\nAvailable Slots:\n  - Monday, 26 May 2026 at 10:00 AM IST\n  - Tuesday, 27 May 2026 at 2:00 PM IST\n  - Wednesday, 28 May 2026 at 11:00 AM IST\n\nPlease reply with your preferred slot or suggest an alternative.\n\nBest regards,\nPriya R.\nTalent Acquisition | RecruitAI`,
+      subject: `You've Been Shortlisted — ${c.role}`,
+      body: `Dear ${c.name},\n\nThank you for applying for the ${c.role} position with us.\n\nWe are pleased to inform you that, after careful review of your profile and qualifications, you have been shortlisted for this role.\n\nOur recruitment team will reach out to you shortly with further details regarding the next steps in the hiring process.\n\nWe appreciate your interest in joining our organization and look forward to speaking with you soon.\n\nWarm regards,\nHR Recruitment Team`,
     });
     setSent(false);
   }

@@ -2,8 +2,7 @@
 import "./OffersPage.css";
 import { FileText, Send, Pencil, Check, X, RefreshCw, AlertCircle, CalendarDays, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useInterviewStore, API_BASE_URL, apiHeaders } from "@/lib/interviewStore";
-
+import { API_BASE_URL, apiHeaders } from "@/lib/interviewStore";
 type Offer = {
   candidate_id?: string;
   email?:       string;
@@ -200,7 +199,6 @@ function OfferLetterModal({ offer, onClose, onSend }: {
   );
 }
 export default function OffersPage() {
-  const { refreshKey, refreshAll } = useInterviewStore();
 
   const [offers,       setOffers]       = useState<Offer[]>([]);
   const [loading,      setLoading]      = useState(false);
@@ -214,8 +212,6 @@ export default function OffersPage() {
   async function fetchOffers() {
     setLoading(true);
     setFetchError(false);
-    /* Clear stale offers immediately for visual feedback */
-    setOffers([]);
     try {
       const res = await fetch(`${MANAGER_API}/manager/offers`);
       if (!res.ok) throw new Error();
@@ -244,16 +240,6 @@ export default function OffersPage() {
 
   /* Auto-fetch on mount */
   useEffect(() => { fetchOffers(); }, []);
-
-  /* Re-fetch offers whenever global refresh fires (refreshAll re-pulls interview data) */
-  useEffect(() => {
-    if (refreshKey === 0) return;   /* skip initial mount, fetchOffers() already runs there */
-    fetchOffers();
-    setEditingBand(null);
-    setEditingJoiningDate(null);
-    setSendError(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
 
   const [sending,  setSending]  = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -436,7 +422,7 @@ export default function OffersPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
-            onClick={() => { refreshAll(); }}
+            onClick={() => { fetchOffers(); }}
             disabled={loading}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.22)", borderRadius: 9, fontSize: 12, fontWeight: 600, color: "#4f46e5", cursor: "pointer", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}
           >
